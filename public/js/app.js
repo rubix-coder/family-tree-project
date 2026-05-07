@@ -609,7 +609,7 @@ const App = (() => {
 
   // ── Add / Edit Member ──────────────────────────────────────────────
   function showAddMember() {
-    App._memberEntries = 1;
+    _memberEntries = 1;
     openModal('member-form-modal', _buildMultiMemberBody(), 'Add Family Member(s)');
   }
 
@@ -647,8 +647,8 @@ const App = (() => {
 
   function _buildMultiMemberBody() {
     let entries = '';
-    for (let i = 0; i < (App._memberEntries || 1); i++) entries += _memberEntryHTML(i);
-    const atMax = (App._memberEntries || 1) >= 6;
+    for (let i = 0; i < _memberEntries; i++) entries += _memberEntryHTML(i);
+    const atMax = _memberEntries >= 6;
     return `<div id="multi-member-entries">${entries}</div>
       <button type="button" class="btn btn-ghost btn-sm" id="add-entry-btn" onclick="App._addMemberEntry()" style="margin-top:.5rem" ${atMax ? 'disabled' : ''}>+ Add another member</button>
       <div class="modal-footer" style="padding:0;margin-top:1rem">
@@ -657,27 +657,29 @@ const App = (() => {
       </div>`;
   }
 
-  App._addMemberEntry = function() {
-    if ((App._memberEntries || 1) >= 6) return;
-    App._memberEntries = (App._memberEntries || 1) + 1;
+  let _memberEntries = 1;
+
+  function _addMemberEntry() {
+    if (_memberEntries >= 6) return;
+    _memberEntries++;
     const container = document.getElementById('multi-member-entries');
     if (container) {
       const div = document.createElement('div');
-      div.innerHTML = _memberEntryHTML(App._memberEntries - 1);
+      div.innerHTML = _memberEntryHTML(_memberEntries - 1);
       container.appendChild(div.firstElementChild);
     }
-    if (App._memberEntries >= 6) {
+    if (_memberEntries >= 6) {
       const btn = document.getElementById('add-entry-btn');
       if (btn) btn.disabled = true;
     }
-  };
+  }
 
-  App._removeMemberEntry = function(index) {
+  function _removeMemberEntry(index) {
     const el = document.getElementById(`member-entry-${index}`);
-    if (el) { el.remove(); App._memberEntries = Math.max(1, (App._memberEntries || 1) - 1); }
+    if (el) { el.remove(); _memberEntries = Math.max(1, _memberEntries - 1); }
     const btn = document.getElementById('add-entry-btn');
     if (btn) btn.disabled = false;
-  };
+  }
 
   async function saveMultipleMembers() {
     const container = document.getElementById('multi-member-entries');
@@ -1218,7 +1220,8 @@ const App = (() => {
     init, navigate, logout, showAuth, switchAuthTab,
     submitPost, submitTreePost, reactPost, toggleComments, addComment, deletePost,
     showCreateTree, createTree, showInviteModal, sendInvite, copyInviteLink,
-    showAddMember, saveMultipleMembers, showEditMember, saveMember, deleteMember, uploadMemberPhoto,
+    showAddMember, saveMultipleMembers, _addMemberEntry, _removeMemberEntry,
+    showEditMember, saveMember, deleteMember, uploadMemberPhoto,
     showTreeSettings, saveTreeSettings, deleteTree,
     showMemberDetail, switchTreeTab, removeCollaborator,
     renderProfile, renderSettings, saveProfile, changePassword, changeAvatar,
