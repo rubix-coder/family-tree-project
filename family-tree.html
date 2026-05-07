@@ -305,39 +305,38 @@ function buildLayout(members) {
     if (pid) (childMap[pid] = childMap[pid] || []).push(m.id);
   });
 
-  // 2. Assign depth via BFS from roots (no active parent)
+  // 2. Assign depth — interleave BFS + bidirectional spouse sync until stable.
+  // Bidirectional spouse lookup covers data where only one side stores spouseId.
+  const spouseOf = {};
+  members.forEach(m => { if (m.spouseId) { spouseOf[m.id] = m.spouseId; spouseOf[m.spouseId] = m.id; } });
+
   const depth = {};
   members.forEach(m => { if (!getParent(m)) depth[m.id] = 0; });
   let changed = true;
   while (changed) {
     changed = false;
+    // BFS: push parent depths down to children
     members.forEach(m => {
-      if (depth[m.id] != null) return;
       const pid = getParent(m);
-      if (pid && depth[pid] != null) { depth[m.id] = depth[pid] + 1; changed = true; }
+      if (!pid) return;
+      const nd = (depth[pid] ?? -1) + 1;
+      if (depth[pid] != null && (depth[m.id] == null || depth[m.id] < nd)) {
+        depth[m.id] = nd; changed = true;
+      }
     });
-  }
-  // Unresolved: propagate from spouse
-  changed = true;
-  while (changed) {
-    changed = false;
+    // Spouse sync: both partners sit at the same (max) depth, bidirectionally
     members.forEach(m => {
-      if (depth[m.id] != null) return;
-      if (m.spouseId && depth[m.spouseId] != null) { depth[m.id] = depth[m.spouseId]; changed = true; }
+      const sid = spouseOf[m.id];
+      if (!sid) return;
+      if (depth[m.id] == null && depth[sid] != null) { depth[m.id] = depth[sid]; changed = true; return; }
+      if (depth[sid] == null && depth[m.id] != null) { depth[sid] = depth[m.id]; changed = true; return; }
+      if (depth[m.id] != null && depth[sid] != null && depth[m.id] !== depth[sid]) {
+        const mx = Math.max(depth[m.id], depth[sid]);
+        depth[m.id] = mx; depth[sid] = mx; changed = true;
+      }
     });
   }
   members.forEach(m => { if (depth[m.id] == null) depth[m.id] = 0; });
-
-  // Sync spouses to same depth
-  changed = true;
-  while (changed) {
-    changed = false;
-    members.forEach(m => {
-      if (!m.spouseId) return;
-      const a = depth[m.id], b = depth[m.spouseId] ?? 0;
-      if (a !== b) { const mx = Math.max(a,b); depth[m.id] = mx; depth[m.spouseId] = mx; changed = true; }
-    });
-  }
 
   // 3. Determine true roots
   const roots = members.filter(m => {
@@ -435,7 +434,7 @@ function buildLayout(members) {
 let nodePos = {};   // overrides: id → {x,y}
 let layoutPos = {}; // last auto-layout result
 
-function resetLayout() { nodePos = {}; drawTree(); }
+function resetLayout() { nodePos = {}; render(); }
 
 function drawTree() {
   const svg = document.getElementById('svg');
