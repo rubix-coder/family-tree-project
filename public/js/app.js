@@ -430,6 +430,7 @@ const App = (() => {
           </div>
           <div class="flex gap-2 flex-wrap">
             ${tree.my_role !== 'viewer' ? `<button class="btn btn-primary btn-sm" onclick="App.showAddMember()">+ Add Member</button>` : ''}
+            ${tree.my_role !== 'viewer' ? `<button class="btn btn-outline btn-sm" onclick="App.showBulkAddMembers()">+ Add Multiple</button>` : ''}
             <button class="btn btn-outline btn-sm" onclick="App.showInviteModal('${tree.id}')">Invite</button>
             ${tree.owner_id === currentUser.id ? `<button class="btn btn-ghost btn-sm" onclick="App.showTreeSettings('${tree.id}')">⚙️ Settings</button>` : ''}
           </div>
@@ -611,6 +612,80 @@ const App = (() => {
   function showAddMember() {
     const members = currentMembers;
     openModal('member-form-modal', renderMemberForm(null, members), 'Add Family Member');
+  }
+
+  function showBulkAddMembers() {
+    const maxRows = 6;
+    function buildRows(count) {
+      let rows = '';
+      for (let i = 0; i < count; i++) {
+        rows += `<div class="bulk-member-row" id="bulk-row-${i}">
+          <div><label>Full Name ${i === 0 ? '*' : ''}</label><input name="name_${i}" class="form-control" placeholder="e.g. Ravi Patel" ${i === 0 ? 'required' : ''}></div>
+          <div><label>Gender</label>
+            <select name="gender_${i}" class="form-control">
+              <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
+            </select></div>
+          <div><label>Birth Year</label><input name="birth_year_${i}" class="form-control" type="number" min="1800" max="2025" placeholder="e.g. 1980"></div>
+        </div>`;
+      }
+      return rows;
+    }
+
+    let rowCount = 3;
+    const bodyHTML = () => `
+      <p style="font-size:.82rem;color:var(--gray-500);margin-bottom:.75rem">Fill in the members below — you can set relationships (parents, spouse) after adding.</p>
+      <div id="bulk-rows-container">${buildRows(rowCount)}</div>
+      <div style="display:flex;gap:.5rem;margin-top:.75rem">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="App._bulkAddRow()" id="bulk-add-row-btn">+ Add another row</button>
+        <span id="bulk-row-count" style="font-size:.78rem;color:var(--gray-500);align-self:center">${rowCount} members</span>
+      </div>
+      <div class="modal-footer" style="padding:0;margin-top:1rem">
+        <button type="button" class="btn btn-ghost" onclick="App.closeModal('bulk-member-modal')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="App.saveBulkMembers()">Save All Members</button>
+      </div>`;
+
+    openModal('bulk-member-modal', bodyHTML(), 'Add Multiple Family Members');
+
+    App._bulkRowCount = rowCount;
+    App._bulkMaxRows = maxRows;
+    App._bulkAddRow = function() {
+      if (App._bulkRowCount >= App._bulkMaxRows) return;
+      App._bulkRowCount++;
+      const container = document.getElementById('bulk-rows-container');
+      const div = document.createElement('div');
+      div.innerHTML = buildRows(App._bulkRowCount).split(`id="bulk-row-${App._bulkRowCount - 1}"`).pop();
+      // Just re-render all rows cleanly
+      container.innerHTML = buildRows(App._bulkRowCount);
+      document.getElementById('bulk-row-count').textContent = `${App._bulkRowCount} members`;
+      if (App._bulkRowCount >= App._bulkMaxRows) document.getElementById('bulk-add-row-btn').disabled = true;
+    };
+  }
+
+  async function saveBulkMembers() {
+    const container = document.getElementById('bulk-rows-container');
+    if (!container) return;
+    const rows = container.querySelectorAll('.bulk-member-row');
+    const entries = [];
+    rows.forEach((row, i) => {
+      const name = (row.querySelector(`[name="name_${i}"]`) || {}).value?.trim();
+      if (!name) return;
+      entries.push({
+        name,
+        gender: (row.querySelector(`[name="gender_${i}"]`) || {}).value || 'male',
+        birth_year: (row.querySelector(`[name="birth_year_${i}"]`) || {}).value?.trim() || null
+      });
+    });
+    if (!entries.length) return toast('Enter at least one name', 'error');
+    const btn = document.querySelector('#bulk-member-modal .btn-primary');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving…'; }
+    try {
+      await Promise.all(entries.map(e => API.members.create(currentTree.id, e)));
+      toast(`${entries.length} member${entries.length > 1 ? 's' : ''} added`, 'success');
+      closeModal('bulk-member-modal');
+      const members = await API.members.list(currentTree.id);
+      currentMembers = members;
+      TreeViz.update(members);
+    } catch (ex) { toast(ex.error || 'Failed to save members', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Save All Members'; } }
   }
 
   function showEditMember(memberId) {
@@ -1115,7 +1190,7 @@ const App = (() => {
     init, navigate, logout, showAuth, switchAuthTab,
     submitPost, submitTreePost, reactPost, toggleComments, addComment, deletePost,
     showCreateTree, createTree, showInviteModal, sendInvite, copyInviteLink,
-    showAddMember, showEditMember, saveMember, deleteMember, uploadMemberPhoto,
+    showAddMember, showBulkAddMembers, saveBulkMembers, showEditMember, saveMember, deleteMember, uploadMemberPhoto,
     showTreeSettings, saveTreeSettings, deleteTree,
     showMemberDetail, switchTreeTab, removeCollaborator,
     renderProfile, renderSettings, saveProfile, changePassword, changeAvatar,
