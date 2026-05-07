@@ -27,21 +27,60 @@ const TreeViz = (() => {
 
   function buildLayout() {
     nodePositions = {};
-    const roots = members.filter(m => !m.paternal_parent_id && !m.maternal_parent_id);
-    if (!roots.length && members.length) roots.push(members[0]);
-
     const placed = new Set();
-    let col = 0;
+
+    // Build bidirectional spouse map (data may only store one direction)
+    const spouseMap = {};
+    for (const m of members) {
+      if (m.spouse_id) {
+        spouseMap[m.id] = m.spouse_id;
+        spouseMap[m.spouse_id] = m.id;
+      }
+    }
+
+    // Build children map; deduplicate when both parent IDs are the same person
+    const childrenOf = {};
+    for (const m of members) {
+      const parents = new Set([m.paternal_parent_id, m.maternal_parent_id].filter(Boolean));
+      for (const pid of parents) {
+        if (!childrenOf[pid]) childrenOf[pid] = [];
+        if (!childrenOf[pid].includes(m.id)) childrenOf[pid].push(m.id);
+      }
+    }
+
+    function getChildren(id) {
+      return (childrenOf[id] || []).map(cid => byId(cid)).filter(Boolean);
+    }
+
+    const hasParents = new Set(members.filter(m => m.paternal_parent_id || m.maternal_parent_id).map(m => m.id));
+
+    // Roots: no parents, and not a spouse of a node that has parents (those get placed as spouses).
+    // When both members of a couple have no parents, pick the one with the smaller id.
+    const roots = members.filter(m => {
+      if (hasParents.has(m.id)) return false;
+      const sid = spouseMap[m.id];
+      if (!sid) return true;
+      if (hasParents.has(sid)) return false;
+      return m.id < sid;
+    });
+
+    if (!roots.length && members.length) roots.push(members[0]);
 
     function placeSubtree(member, depth, column) {
       if (placed.has(member.id)) return column;
       placed.add(member.id);
 
-      const children = members.filter(m => m.paternal_parent_id === member.id || m.maternal_parent_id === member.id);
+      // Combine children of this member and their spouse to get all children of this couple
+      const childIds = new Set();
+      for (const c of getChildren(member.id)) childIds.add(c.id);
+      const sid = spouseMap[member.id];
+      if (sid) for (const c of getChildren(sid)) childIds.add(c.id);
+      const children = [...childIds].map(id => byId(id)).filter(Boolean);
 
       let childCols = [];
       let c = column;
       for (const child of children) {
+        if (placed.has(child.id)) continue;
         c = placeSubtree(child, depth + 1, c);
         childCols.push(nodePositions[child.id] ? nodePositions[child.id].cx : c);
         c++;
@@ -50,8 +89,8 @@ const TreeViz = (() => {
       const x = childCols.length ? (Math.min(...childCols) + Math.max(...childCols)) / 2 : column;
       nodePositions[member.id] = { cx: x, cy: depth };
 
-      if (member.spouse_id && !placed.has(member.spouse_id)) {
-        const spouse = byId(member.spouse_id);
+      if (sid && !placed.has(sid)) {
+        const spouse = byId(sid);
         if (spouse) {
           placed.add(spouse.id);
           nodePositions[spouse.id] = { cx: x + 1, cy: depth };
@@ -64,14 +103,14 @@ const TreeViz = (() => {
 
     let startCol = 0;
     for (const root of roots) {
-      startCol = placeSubtree(root, 0, startCol) + 1;
+      if (!placed.has(root.id)) startCol = placeSubtree(root, 0, startCol) + 1;
     }
 
-    let placed2 = 0;
+    let extra = 0;
     for (const m of members) {
       if (!nodePositions[m.id]) {
-        nodePositions[m.id] = { cx: startCol + placed2, cy: 0 };
-        placed2++;
+        nodePositions[m.id] = { cx: startCol + extra, cy: 0 };
+        extra++;
       }
     }
   }
