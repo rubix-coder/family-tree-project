@@ -138,14 +138,15 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .new-tree-card .icon { font-size: 2rem; }
 
 /* ── Tree Viewer ─────────────────────────────────────────────────── */
-.tree-viewer { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
+.tree-viewer { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; display: flex; flex-direction: column; }
+#tree-tab-viz { display: flex; flex-direction: column; flex: 1; }
 .tree-viewer-header { padding: 1rem 1.25rem; background: var(--navy); color: var(--white); display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .tree-tabs { display: flex; background: var(--white); border-bottom: 1px solid var(--gray-200); }
 .tree-tab { padding: .75rem 1.25rem; font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; transition: all .15s; cursor: pointer; }
 .tree-tab:hover { color: var(--navy); }
 .tree-tab.active { color: var(--navy); border-bottom-color: var(--gold); }
-#tree-canvas { min-height: 500px; background: var(--gray-50); position: relative; overflow: hidden; display: flex; flex-direction: column; }
-.tree-scroll { overflow: auto; flex: 1; min-height: 440px; max-height: 620px; cursor: grab; user-select: none; }
+#tree-canvas { background: var(--gray-50); position: relative; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.tree-scroll { overflow: auto; flex: 1; height: calc(100vh - 290px); min-height: 420px; cursor: grab; user-select: none; }
 .tree-scroll:active { cursor: grabbing; }
 /* Toolbar replaces the old absolute-positioned controls */
 .tree-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .55rem .75rem; background: var(--white); border-bottom: 1px solid var(--gray-200); flex-wrap: wrap; z-index: 10; }

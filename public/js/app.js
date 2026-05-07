@@ -430,7 +430,6 @@ const App = (() => {
           </div>
           <div class="flex gap-2 flex-wrap">
             ${tree.my_role !== 'viewer' ? `<button class="btn btn-primary btn-sm" onclick="App.showAddMember()">+ Add Member</button>` : ''}
-            ${tree.my_role !== 'viewer' ? `<button class="btn btn-outline btn-sm" onclick="App.showBulkAddMembers()">+ Add Multiple</button>` : ''}
             <button class="btn btn-outline btn-sm" onclick="App.showInviteModal('${tree.id}')">Invite</button>
             ${tree.owner_id === currentUser.id ? `<button class="btn btn-ghost btn-sm" onclick="App.showTreeSettings('${tree.id}')">⚙️ Settings</button>` : ''}
           </div>
@@ -610,82 +609,111 @@ const App = (() => {
 
   // ── Add / Edit Member ──────────────────────────────────────────────
   function showAddMember() {
-    const members = currentMembers;
-    openModal('member-form-modal', renderMemberForm(null, members), 'Add Family Member');
+    App._memberEntries = 1;
+    openModal('member-form-modal', _buildMultiMemberBody(), 'Add Family Member(s)');
   }
 
-  function showBulkAddMembers() {
-    const maxRows = 6;
-    function buildRows(count) {
-      let rows = '';
-      for (let i = 0; i < count; i++) {
-        rows += `<div class="bulk-member-row" id="bulk-row-${i}">
-          <div><label>Full Name ${i === 0 ? '*' : ''}</label><input name="name_${i}" class="form-control" placeholder="e.g. Ravi Patel" ${i === 0 ? 'required' : ''}></div>
-          <div><label>Gender</label>
-            <select name="gender_${i}" class="form-control">
-              <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
-            </select></div>
-          <div><label>Birth Year</label><input name="birth_year_${i}" class="form-control" type="number" min="1800" max="2025" placeholder="e.g. 1980"></div>
-        </div>`;
-      }
-      return rows;
-    }
-
-    let rowCount = 3;
-    const bodyHTML = () => `
-      <p style="font-size:.82rem;color:var(--gray-500);margin-bottom:.75rem">Fill in the members below — you can set relationships (parents, spouse) after adding.</p>
-      <div id="bulk-rows-container">${buildRows(rowCount)}</div>
-      <div style="display:flex;gap:.5rem;margin-top:.75rem">
-        <button type="button" class="btn btn-ghost btn-sm" onclick="App._bulkAddRow()" id="bulk-add-row-btn">+ Add another row</button>
-        <span id="bulk-row-count" style="font-size:.78rem;color:var(--gray-500);align-self:center">${rowCount} members</span>
+  function _memberEntryHTML(index) {
+    const others = currentMembers;
+    const opt = (m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+    const sep = index > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-top:2px solid var(--gray-100);margin-top:.75rem">
+      <strong style="font-size:.82rem;color:var(--gray-500)">Member ${index + 1}</strong>
+      <button type="button" class="btn btn-ghost btn-sm" style="color:var(--red);padding:.2rem .5rem" onclick="App._removeMemberEntry(${index})">✕ Remove</button>
+    </div>` : '';
+    return `<div class="member-entry" id="member-entry-${index}">${sep}
+      <div class="form-group"><label>Full Name${index === 0 ? ' *' : ''}</label><input name="me_name_${index}" class="form-control" placeholder="Full name" ${index === 0 ? 'required' : ''}></div>
+      <div class="form-row">
+        <div class="form-group"><label>Gender</label>
+          <select name="me_gender_${index}" class="form-control">
+            <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
+          </select></div>
+        <div class="form-group"><label>Birth Year</label><input name="me_birth_year_${index}" class="form-control" type="number" min="1" max="2025" placeholder="e.g. 1985"></div>
       </div>
-      <div class="modal-footer" style="padding:0;margin-top:1rem">
-        <button type="button" class="btn btn-ghost" onclick="App.closeModal('bulk-member-modal')">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="App.saveBulkMembers()">Save All Members</button>
-      </div>`;
-
-    openModal('bulk-member-modal', bodyHTML(), 'Add Multiple Family Members');
-
-    App._bulkRowCount = rowCount;
-    App._bulkMaxRows = maxRows;
-    App._bulkAddRow = function() {
-      if (App._bulkRowCount >= App._bulkMaxRows) return;
-      App._bulkRowCount++;
-      const container = document.getElementById('bulk-rows-container');
-      const div = document.createElement('div');
-      div.innerHTML = buildRows(App._bulkRowCount).split(`id="bulk-row-${App._bulkRowCount - 1}"`).pop();
-      // Just re-render all rows cleanly
-      container.innerHTML = buildRows(App._bulkRowCount);
-      document.getElementById('bulk-row-count').textContent = `${App._bulkRowCount} members`;
-      if (App._bulkRowCount >= App._bulkMaxRows) document.getElementById('bulk-add-row-btn').disabled = true;
-    };
+      <div class="form-row">
+        <div class="form-group"><label>Death Year</label><input name="me_death_year_${index}" class="form-control" type="number" min="1" max="2025"></div>
+        <div class="form-group"><label>Birth Place</label><input name="me_birth_place_${index}" class="form-control" placeholder="City, Country"></div>
+      </div>
+      ${others.length ? `
+      <div class="form-group"><label>Father (Paternal Parent)</label>
+        <select name="me_paternal_${index}" class="form-control"><option value="">— none —</option>${others.map(opt).join('')}</select></div>
+      <div class="form-group"><label>Mother (Maternal Parent)</label>
+        <select name="me_maternal_${index}" class="form-control"><option value="">— none —</option>${others.map(opt).join('')}</select></div>
+      <div class="form-group"><label>Spouse / Partner</label>
+        <select name="me_spouse_${index}" class="form-control"><option value="">— none —</option>${others.map(opt).join('')}</select></div>
+      ` : ''}
+      <div class="form-group"><label>Biography</label><textarea name="me_bio_${index}" class="form-control" rows="2" placeholder="Optional short bio"></textarea></div>
+    </div>`;
   }
 
-  async function saveBulkMembers() {
-    const container = document.getElementById('bulk-rows-container');
+  function _buildMultiMemberBody() {
+    let entries = '';
+    for (let i = 0; i < (App._memberEntries || 1); i++) entries += _memberEntryHTML(i);
+    const atMax = (App._memberEntries || 1) >= 6;
+    return `<div id="multi-member-entries">${entries}</div>
+      <button type="button" class="btn btn-ghost btn-sm" id="add-entry-btn" onclick="App._addMemberEntry()" style="margin-top:.5rem" ${atMax ? 'disabled' : ''}>+ Add another member</button>
+      <div class="modal-footer" style="padding:0;margin-top:1rem">
+        <button type="button" class="btn btn-ghost" onclick="App.closeModal('member-form-modal')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="App.saveMultipleMembers()">Save Member(s)</button>
+      </div>`;
+  }
+
+  App._addMemberEntry = function() {
+    if ((App._memberEntries || 1) >= 6) return;
+    App._memberEntries = (App._memberEntries || 1) + 1;
+    const container = document.getElementById('multi-member-entries');
+    if (container) {
+      const div = document.createElement('div');
+      div.innerHTML = _memberEntryHTML(App._memberEntries - 1);
+      container.appendChild(div.firstElementChild);
+    }
+    if (App._memberEntries >= 6) {
+      const btn = document.getElementById('add-entry-btn');
+      if (btn) btn.disabled = true;
+    }
+  };
+
+  App._removeMemberEntry = function(index) {
+    const el = document.getElementById(`member-entry-${index}`);
+    if (el) { el.remove(); App._memberEntries = Math.max(1, (App._memberEntries || 1) - 1); }
+    const btn = document.getElementById('add-entry-btn');
+    if (btn) btn.disabled = false;
+  };
+
+  async function saveMultipleMembers() {
+    const container = document.getElementById('multi-member-entries');
     if (!container) return;
-    const rows = container.querySelectorAll('.bulk-member-row');
     const entries = [];
-    rows.forEach((row, i) => {
-      const name = (row.querySelector(`[name="name_${i}"]`) || {}).value?.trim();
+    container.querySelectorAll('.member-entry').forEach(el => {
+      const g = (n) => (el.querySelector(`[name="${n}"]`) || {}).value?.trim() || null;
+      const name = g(el.querySelector('[name^="me_name_"]')?.name);
       if (!name) return;
+      const idx = el.querySelector('[name^="me_name_"]').name.replace('me_name_', '');
       entries.push({
         name,
-        gender: (row.querySelector(`[name="gender_${i}"]`) || {}).value || 'male',
-        birth_year: (row.querySelector(`[name="birth_year_${i}"]`) || {}).value?.trim() || null
+        gender: g(`me_gender_${idx}`) || 'male',
+        birth_year: g(`me_birth_year_${idx}`),
+        death_year: g(`me_death_year_${idx}`),
+        birth_place: g(`me_birth_place_${idx}`),
+        paternal_parent_id: g(`me_paternal_${idx}`),
+        maternal_parent_id: g(`me_maternal_${idx}`),
+        spouse_id: g(`me_spouse_${idx}`),
+        bio: g(`me_bio_${idx}`)
       });
     });
     if (!entries.length) return toast('Enter at least one name', 'error');
-    const btn = document.querySelector('#bulk-member-modal .btn-primary');
+    const btn = document.querySelector('#member-form-modal .btn-primary');
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving…'; }
     try {
-      await Promise.all(entries.map(e => API.members.create(currentTree.id, e)));
+      for (const e of entries) await API.members.create(currentTree.id, e);
       toast(`${entries.length} member${entries.length > 1 ? 's' : ''} added`, 'success');
-      closeModal('bulk-member-modal');
-      const members = await API.members.list(currentTree.id);
-      currentMembers = members;
-      TreeViz.update(members);
-    } catch (ex) { toast(ex.error || 'Failed to save members', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Save All Members'; } }
+      closeModal('member-form-modal');
+      const mems = await API.members.list(currentTree.id);
+      currentMembers = mems;
+      TreeViz.update(mems);
+    } catch (ex) {
+      toast(ex.error || 'Failed to save', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Save Member(s)'; }
+    }
   }
 
   function showEditMember(memberId) {
@@ -1190,7 +1218,7 @@ const App = (() => {
     init, navigate, logout, showAuth, switchAuthTab,
     submitPost, submitTreePost, reactPost, toggleComments, addComment, deletePost,
     showCreateTree, createTree, showInviteModal, sendInvite, copyInviteLink,
-    showAddMember, showBulkAddMembers, saveBulkMembers, showEditMember, saveMember, deleteMember, uploadMemberPhoto,
+    showAddMember, saveMultipleMembers, showEditMember, saveMember, deleteMember, uploadMemberPhoto,
     showTreeSettings, saveTreeSettings, deleteTree,
     showMemberDetail, switchTreeTab, removeCollaborator,
     renderProfile, renderSettings, saveProfile, changePassword, changeAvatar,
