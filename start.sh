@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
 
 echo ""
 echo "  ╔══════════════════════════════╗"
@@ -7,65 +6,71 @@ echo "  ║     FamilyTree Social        ║"
 echo "  ╚══════════════════════════════╝"
 echo ""
 
-# ── Check Node.js ────────────────────────────────────────────────────
-if ! command -v node &>/dev/null; then
-  echo "  ERROR: Node.js is not installed."
+# ── Auto-install Node.js + npm ───────────────────────────────────────
+install_node() {
+  echo "  Node.js not found — installing automatically..."
   echo ""
-  echo "  Install it using one of the methods below, then run this"
-  echo "  script again."
+
+  if command -v apt-get &>/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - >/dev/null 2>&1
+    sudo apt-get install -y nodejs >/dev/null 2>&1
+
+  elif command -v dnf &>/dev/null; then
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash - >/dev/null 2>&1
+    sudo dnf install -y nodejs >/dev/null 2>&1
+
+  elif command -v yum &>/dev/null; then
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash - >/dev/null 2>&1
+    sudo yum install -y nodejs >/dev/null 2>&1
+
+  elif command -v pacman &>/dev/null; then
+    sudo pacman -S --noconfirm nodejs npm >/dev/null 2>&1
+
+  elif command -v zypper &>/dev/null; then
+    sudo zypper install -y nodejs20 npm20 >/dev/null 2>&1
+
+  elif command -v brew &>/dev/null; then
+    brew install node >/dev/null 2>&1
+
+  else
+    echo "  ERROR: Could not detect a package manager to install Node.js."
+    echo "  Please install Node.js manually from: https://nodejs.org"
+    echo "  Then run this script again."
+    echo ""
+    read -rp "  Press Enter to exit..." _
+    exit 1
+  fi
+
+  # Verify install succeeded
+  if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+    echo "  ERROR: Installation failed."
+    echo "  Please install Node.js manually from: https://nodejs.org"
+    echo "  Then run this script again."
+    echo ""
+    read -rp "  Press Enter to exit..." _
+    exit 1
+  fi
+
+  echo "  Node.js $(node --version) installed successfully."
   echo ""
-  echo "  Ubuntu / Debian:"
-  echo "    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
-  echo "    sudo apt-get install -y nodejs"
-  echo ""
-  echo "  Fedora / RHEL / CentOS:"
-  echo "    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -"
-  echo "    sudo dnf install -y nodejs"
-  echo ""
-  echo "  Arch Linux:"
-  echo "    sudo pacman -S nodejs npm"
-  echo ""
-  echo "  macOS (Homebrew):"
-  echo "    brew install node"
-  echo ""
-  echo "  Any platform (official installer):"
-  echo "    https://nodejs.org  →  download the LTS version"
-  echo ""
-  read -rp "  Press Enter to exit..." _
-  exit 1
+}
+
+# Install if node or npm is missing
+if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+  install_node
 fi
 
-# ── Check npm ────────────────────────────────────────────────────────
-if ! command -v npm &>/dev/null; then
-  echo "  ERROR: npm is not installed (it normally comes with Node.js)."
+# Upgrade if version is below 18
+NODE_MAJOR=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
+if [ "$NODE_MAJOR" -lt 18 ]; then
+  echo "  Node.js $(node --version) is too old (need v18+) — upgrading..."
   echo ""
-  echo "  Try reinstalling Node.js from https://nodejs.org"
-  echo "  Or on Linux, install npm separately:"
-  echo ""
-  echo "  Ubuntu / Debian:  sudo apt-get install -y npm"
-  echo "  Fedora / RHEL:    sudo dnf install -y npm"
-  echo "  Arch Linux:       sudo pacman -S npm"
-  echo ""
-  read -rp "  Press Enter to exit..." _
-  exit 1
+  install_node
 fi
 
-# ── Check minimum Node version (18+) ─────────────────────────────────
-NODE_VER=$(node -e "process.exit(parseInt(process.versions.node.split('.')[0]))" 2>/dev/null; echo $?)
-if [ "$NODE_VER" -lt 18 ]; then
-  CURRENT=$(node --version)
-  echo "  ERROR: Node.js $CURRENT is installed but version 18 or higher is required."
-  echo ""
-  echo "  Please upgrade: https://nodejs.org"
-  echo ""
-  read -rp "  Press Enter to exit..." _
-  exit 1
-fi
-
-# ── Install dependencies if needed ───────────────────────────────────
+# ── Install app dependencies if needed ───────────────────────────────
 if [ ! -d "node_modules" ]; then
-  echo "  Installing dependencies (first run only)..."
-  echo ""
+  echo "  Installing app dependencies (first run only)..."
   npm install --silent
   echo "  Done."
   echo ""

@@ -6,66 +6,81 @@ echo     FamilyTree Social
 echo   ==========================================
 echo.
 
-:: ── Check Node.js is installed ────────────────────────────────────────
+:: ── Auto-install Node.js + npm if missing ────────────────────────────
+where node >nul 2>&1
+if errorlevel 1 goto install_node
+
+where npm >nul 2>&1
+if errorlevel 1 goto install_node
+
+:: Check version (need 18+)
+for /f %%a in ('node -e "process.stdout.write(process.versions.node.split(\".\")[0])"') do set NODE_MAJOR=%%a
+if %NODE_MAJOR% LSS 18 goto install_node
+
+goto deps
+
+:install_node
+echo   Node.js not found or outdated — installing automatically...
+echo.
+
+:: Try winget first (available on Windows 10/11)
+where winget >nul 2>&1
+if not errorlevel 1 (
+    winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
+    goto refresh_path
+)
+
+:: Fall back to PowerShell silent download + install
+echo   Downloading Node.js installer...
+powershell -ExecutionPolicy Bypass -Command ^
+    "$url = 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi';" ^
+    "$out = \"$env:TEMP\nodejs_installer.msi\";" ^
+    "Write-Host '  Downloading...'" ^
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;" ^
+    "Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing;" ^
+    "Write-Host '  Installing (this may take a moment)...';" ^
+    "Start-Process msiexec.exe -ArgumentList '/i', $out, '/quiet', '/norestart', 'ADDLOCAL=ALL' -Wait;" ^
+    "Remove-Item $out -Force"
+
+if errorlevel 1 (
+    echo.
+    echo   ERROR: Automatic installation failed.
+    echo   Please install Node.js manually from: https://nodejs.org
+    echo   Then double-click start.bat again.
+    echo.
+    start https://nodejs.org
+    pause
+    exit /b 1
+)
+
+:refresh_path
+:: Add default Node.js install location to PATH for this session
+set "PATH=C:\Program Files\nodejs\;%PATH%"
+
+:: Verify node is now available
 where node >nul 2>&1
 if errorlevel 1 (
-    echo   ERROR: Node.js is not installed.
     echo.
-    echo   Please install it, then double-click this file again.
-    echo.
-    echo   Steps:
-    echo     1. Open your browser and go to: https://nodejs.org
-    echo     2. Click "Download Node.js (LTS)"
-    echo     3. Run the installer - keep all default options
-    echo     4. IMPORTANT: restart your computer after installing
-    echo     5. Then double-click start.bat again
-    echo.
-    echo   Opening the download page now...
-    start https://nodejs.org
+    echo   Installation complete. Please restart your computer
+    echo   and then double-click start.bat again.
     echo.
     pause
-    exit /b 1
+    exit /b 0
 )
 
-:: ── Check npm is installed ────────────────────────────────────────────
-where npm >nul 2>&1
-if errorlevel 1 (
-    echo   ERROR: npm is not installed.
-    echo   npm normally comes bundled with Node.js.
-    echo.
-    echo   Please reinstall Node.js from https://nodejs.org
-    echo   Make sure to restart your computer after reinstalling.
-    echo.
-    echo   Opening the download page now...
-    start https://nodejs.org
-    echo.
-    pause
-    exit /b 1
-)
+echo.
+echo   Node.js installed successfully.
+echo.
 
-:: ── Check minimum Node version (18+) ─────────────────────────────────
-for /f "tokens=1 delims=." %%a in ('node -e "process.stdout.write(process.versions.node)"') do set NODE_MAJOR=%%a
-if %NODE_MAJOR% LSS 18 (
-    echo   ERROR: Node.js version 18 or higher is required.
-    for /f %%v in ('node --version') do echo   You have: %%v
-    echo.
-    echo   Please download the latest LTS version from: https://nodejs.org
-    echo   Opening the download page now...
-    start https://nodejs.org
-    echo.
-    pause
-    exit /b 1
-)
-
-:: ── Install dependencies if needed ───────────────────────────────────
+:deps
+:: ── Install app dependencies if needed ───────────────────────────────
 if not exist "node_modules\" (
-    echo   Installing dependencies (first run only)...
-    echo.
+    echo   Installing app dependencies (first run only)...
     call npm install --silent
     if errorlevel 1 (
         echo.
         echo   ERROR: Failed to install dependencies.
-        echo   Make sure you are connected to the internet and try again.
+        echo   Check your internet connection and try again.
         echo.
         pause
         exit /b 1
