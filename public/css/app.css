@@ -308,6 +308,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .sidebar { display: none; }
   .main-layout { padding: .75rem; }
   .header-search { display: none; }
+  .hidden-mobile { display: none; }
   .form-row { grid-template-columns: 1fr; }
   .trees-grid { grid-template-columns: 1fr 1fr; }
 }
