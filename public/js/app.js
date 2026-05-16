@@ -627,10 +627,10 @@ const App = (() => {
           <select name="me_gender_${index}" class="form-control">
             <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
           </select></div>
-        <div class="form-group"><label>Birth Year</label><input name="me_birth_year_${index}" class="form-control" type="number" min="1" max="2025" placeholder="e.g. 1985"></div>
+        <div class="form-group"><label>Birth Year</label><input name="me_birth_year_${index}" class="form-control" type="number" min="1" max="2030" placeholder="e.g. 1985"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Death Year</label><input name="me_death_year_${index}" class="form-control" type="number" min="1" max="2025"></div>
+        <div class="form-group"><label>Death Year</label><input name="me_death_year_${index}" class="form-control" type="number" min="1" max="2030"></div>
         <div class="form-group"><label>Birth Place</label><input name="me_birth_place_${index}" class="form-control" placeholder="City, Country"></div>
       </div>
       ${others.length ? `
@@ -686,15 +686,17 @@ const App = (() => {
     if (!container) return;
     const entries = [];
     container.querySelectorAll('.member-entry').forEach(el => {
-      const g = (n) => (el.querySelector(`[name="${n}"]`) || {}).value?.trim() || null;
-      const name = g(el.querySelector('[name^="me_name_"]')?.name);
+      const nameInput = el.querySelector('[name^="me_name_"]');
+      if (!nameInput) return;
+      const name = nameInput.value.trim();
       if (!name) return;
-      const idx = el.querySelector('[name^="me_name_"]').name.replace('me_name_', '');
+      const idx = nameInput.name.replace('me_name_', '');
+      const g = (n) => (el.querySelector(`[name="${n}"]`) || {}).value?.trim() || null;
       entries.push({
         name,
         gender: g(`me_gender_${idx}`) || 'male',
-        birth_year: g(`me_birth_year_${idx}`),
-        death_year: g(`me_death_year_${idx}`),
+        birth_year: g(`me_birth_year_${idx}`) ? parseInt(g(`me_birth_year_${idx}`)) : null,
+        death_year: g(`me_death_year_${idx}`) ? parseInt(g(`me_death_year_${idx}`)) : null,
         birth_place: g(`me_birth_place_${idx}`),
         paternal_parent_id: g(`me_paternal_${idx}`),
         maternal_parent_id: g(`me_maternal_${idx}`),
@@ -738,10 +740,10 @@ const App = (() => {
             <option value="female" ${member && member.gender === 'female' ? 'selected' : ''}>Female</option>
             <option value="other" ${member && member.gender === 'other' ? 'selected' : ''}>Other</option>
           </select></div>
-        <div class="form-group"><label>Birth Year</label><input name="birth_year" class="form-control" type="number" min="1" max="2025" value="${member && member.birth_year ? member.birth_year : ''}"></div>
+        <div class="form-group"><label>Birth Year</label><input name="birth_year" class="form-control" type="number" min="1" max="2030" value="${member && member.birth_year ? member.birth_year : ''}"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Death Year</label><input name="death_year" class="form-control" type="number" min="1" max="2025" value="${member && member.death_year ? member.death_year : ''}"></div>
+        <div class="form-group"><label>Death Year</label><input name="death_year" class="form-control" type="number" min="1" max="2030" value="${member && member.death_year ? member.death_year : ''}"></div>
         <div class="form-group"><label>Birth Place</label><input name="birth_place" class="form-control" value="${member && member.birth_place ? escapeHtml(member.birth_place) : ''}"></div>
       </div>
       ${others.length ? `

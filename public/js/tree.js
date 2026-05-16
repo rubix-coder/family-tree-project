@@ -253,7 +253,7 @@ const TreeViz = (() => {
 
       nodesHTML += `
         <g class="tree-node" data-id="${m.id}">
-          <rect x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="10" fill="white" stroke="${gc}" stroke-width="${isCollapsed ? 2.5 : 2}" stroke-dasharray="${isCollapsed ? '6,3' : 'none'}" filter="url(#shadow)" onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer"/>
+          <rect x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="10" fill="white" stroke="${gc}" stroke-width="${isCollapsed ? 2.5 : 2}" ${isCollapsed ? 'stroke-dasharray="6,3"' : ''} filter="url(#shadow)" onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer"/>
           ${photoHTML}
           <text x="${x + 54}" y="${y + 24}" font-size="${fs}" font-weight="600" fill="#1e293b" dominant-baseline="middle" onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer">${escapeXml(m.name.length > 16 ? m.name.slice(0, 15) + '…' : m.name)}</text>
           ${lifespan ? `<text x="${x + 54}" y="${y + 42}" font-size="9" fill="#64748b" onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer">${escapeXml(lifespan)}</text>` : ''}
@@ -365,7 +365,10 @@ const TreeViz = (() => {
   function downloadPNG() {
     const svg = document.getElementById('tree-svg');
     if (!svg) return;
-    const svgData = new XMLSerializer().serializeToString(svg);
+    // Clone and strip <image> elements to avoid canvas taint from cross-origin photos
+    const clone = svg.cloneNode(true);
+    clone.querySelectorAll('image').forEach(img => img.remove());
+    const svgData = new XMLSerializer().serializeToString(clone);
     const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const img = new Image();
@@ -383,6 +386,7 @@ const TreeViz = (() => {
       link.href = canvas.toDataURL('image/png');
       link.click();
     };
+    img.onerror = () => { URL.revokeObjectURL(url); alert('PNG export failed — try the PDF option instead.'); };
     img.src = url;
   }
 
