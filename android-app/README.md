@@ -42,36 +42,44 @@ android-app/
 
 ## Prerequisites
 
-- **Node.js 18+**
+- **Node.js 18+** — [nodejs.org](https://nodejs.org) (LTS recommended)
 - **An Expo account (free)** — [expo.dev/signup](https://expo.dev/signup)
-- **The FamilyTree server running** — see the root `README.md`; start it with `npm start` in the project root
+- **The FamilyTree server running** — see the root `README.md`; start it with `npm install` then `npm start` in the project root
 
 ---
 
 ## Option A — EAS Build (Cloud, Recommended)
 
-No Android SDK or Android Studio required. Expo's cloud service compiles the APK for you on their servers (free tier available, ~10–15 min build time).
+No Android SDK or Android Studio required. Expo's cloud service compiles the APK for free (~10–15 min).
 
-```bash
+### Windows (Command Prompt or PowerShell)
+
+```cmd
 cd android-app
 
-# 1. Install dependencies
 npm install
 
-# 2. Install EAS CLI globally
 npm install -g eas-cli
 
-# 3. Log in to your Expo account
 eas login
 
-# 4. First time only — link to your Expo project
 eas build:configure
 
-# 5. Build the APK
 eas build --platform android --profile preview
 ```
 
-When the build completes, the CLI prints a download URL. You can also find all builds at [expo.dev](https://expo.dev) → Your Project → Builds.
+### Linux / Mac (Terminal)
+
+```bash
+cd android-app
+npm install
+npm install -g eas-cli
+eas login
+eas build:configure
+eas build --platform android --profile preview
+```
+
+When the build finishes the CLI prints a download link for the `.apk`. You can also find it at [expo.dev](https://expo.dev) → Your Project → Builds.
 
 ### Install the APK on Samsung S24+
 
@@ -84,18 +92,24 @@ When the build completes, the CLI prints a download URL. You can also find all b
 
 ## Option B — Local Build with Android Studio
 
-Requires Android Studio (SDK 34, Build Tools 34).
+Requires [Android Studio](https://developer.android.com/studio) with SDK 34 and Build Tools 34 installed.
+
+### Windows
+
+```cmd
+cd android-app
+npm install
+npx expo prebuild --platform android
+cd android
+gradlew.bat assembleDebug
+```
+
+### Linux / Mac
 
 ```bash
 cd android-app
-
-# 1. Install dependencies
 npm install
-
-# 2. Generate the native android/ directory
 npx expo prebuild --platform android
-
-# 3. Build a debug APK
 cd android
 ./gradlew assembleDebug
 ```
@@ -109,7 +123,17 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 ## Option C — Expo Go (Development / Testing)
 
-Fastest way to test — no build step needed. Requires the **Expo Go** app installed on your phone ([Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent)).
+Fastest way to test with no build step. Install **Expo Go** on your phone from the [Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent).
+
+### Windows
+
+```cmd
+cd android-app
+npm install
+npx expo start
+```
+
+### Linux / Mac
 
 ```bash
 cd android-app
@@ -117,7 +141,7 @@ npm install
 npx expo start
 ```
 
-Scan the QR code shown in the terminal with the Expo Go app. **Both your phone and computer must be on the same WiFi network.**
+Scan the QR code in the terminal with the Expo Go app. **Your phone and computer must be on the same WiFi network.**
 
 ---
 
@@ -125,8 +149,8 @@ Scan the QR code shown in the terminal with the Expo Go app. **Both your phone a
 
 | Screen | What happens |
 |---|---|
-| **Setup** | Enter your server URL (e.g. `http://192.168.1.50:3000`). The app validates connectivity before saving. |
-| **Auth** | Login with existing account or register a new one. |
+| **Setup** | Enter your server URL (e.g. `http://192.168.1.50:3000`). The app tests connectivity before saving. |
+| **Auth** | Login with an existing account or register a new one. |
 | **Home** | Social feed — posts and reactions from your family trees. |
 | **Trees** | List all your trees; tap to open or create a new one. |
 | **Tree Detail** | Three tabs: SVG tree view · Members list · Tree feed. |
@@ -134,15 +158,31 @@ Scan the QR code shown in the terminal with the Expo Go app. **Both your phone a
 | **Notifications** | All activity across your trees; tap to navigate to the source. |
 | **Profile** | Edit display name and bio; sign out. |
 
-### Finding your server IP (for Setup screen)
+---
 
-Run this on the computer where the server is running:
+## Finding Your Server IP Address
+
+The server must be reachable from your phone. Use your computer's **local network IP** (not `localhost` — that only works on the computer itself).
+
+**Windows:**
+```cmd
+ipconfig
+```
+Look for **IPv4 Address** under your active network adapter (Wi-Fi or Ethernet), e.g. `192.168.1.50`.
+
+**Linux:**
 ```bash
-hostname -I     # Linux / Mac
-ipconfig        # Windows — look for IPv4 Address
+hostname -I
 ```
 
-Enter that IP as: `http://192.168.x.x:3000`
+**Mac:**
+```bash
+ipconfig getifaddr en0
+```
+
+Enter it in the Setup screen as: `http://192.168.x.x:3000`
+
+> Both your phone and computer must be connected to the **same WiFi network**.
 
 ---
 
@@ -156,6 +196,18 @@ Enter that IP as: `http://192.168.x.x:3000`
 - JWT authentication with automatic silent token refresh via Axios interceptor
 - Session expiry redirects to Auth automatically
 - AsyncStorage persistence — server URL, tokens, and user profile cached locally
+
+---
+
+## Common Issues
+
+| Problem | Fix |
+|---|---|
+| `npm` is not recognised | Node.js not installed — download from [nodejs.org](https://nodejs.org) and restart your terminal |
+| `eas` is not recognised | Run `npm install -g eas-cli` first |
+| App shows "Cannot connect" on Setup screen | Server isn't running, wrong IP, or phone isn't on the same WiFi |
+| QR code scan does nothing (Expo Go) | Make sure Expo Go is installed and both devices are on the same WiFi |
+| Build fails with SDK error (Option B) | Open Android Studio → SDK Manager → install SDK 34 and Build Tools 34 |
 
 ---
 

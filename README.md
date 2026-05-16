@@ -32,20 +32,39 @@ family-tree-project/
 
 ---
 
+## Prerequisites
+
+- **Node.js 18+** — download from [nodejs.org](https://nodejs.org) (LTS recommended)
+  - Windows: run the `.msi` installer, restart your terminal after installing
+  - Linux/Mac: use your package manager or the installer from the site
+
+Verify the installation:
+```
+node --version   # should print v18.x.x or higher
+npm --version
+```
+
+---
+
 ## Running the Web App
 
-### Prerequisites
-- **Node.js 18+** — [nodejs.org](https://nodejs.org)
+### Windows (Command Prompt or PowerShell)
 
-### Start the server
-
-```bash
+```cmd
 cd family-tree-project
 
 # First time only — install dependencies
 npm install
 
 # Start the server
+npm start
+```
+
+### Linux / Mac (Terminal)
+
+```bash
+cd family-tree-project
+npm install
 npm start
 ```
 
@@ -56,11 +75,18 @@ Server running on http://localhost:3000
 
 ### Open in browser
 
-```
-http://localhost:3000
-```
+Go to: **`http://localhost:3000`**
 
-> **Important:** Always open `http://localhost:3000` — do **not** double-click `index.html` directly. Opening it as a `file://` URL skips the server, so all API calls fail and the page stays blank.
+> **Important:** Always use `http://localhost:3000` — do **not** double-click `index.html` directly. Opening it as a `file://` URL skips the server, so all API calls fail and the page stays blank.
+
+### Keeping the server running
+
+The terminal window running `npm start` must stay open while you use the app. To stop the server press `Ctrl + C`.
+
+On Windows you can also run it in the background:
+```cmd
+start /b npm start
+```
 
 ---
 
@@ -90,6 +116,17 @@ http://localhost:3000
 - Register with display name, username, and email
 - JWT authentication — 15-minute access tokens with 7-day refresh tokens
 - Profile page with avatar upload and biography
+
+---
+
+## Common Errors
+
+| Error | Fix |
+|---|---|
+| `Cannot find module 'express'` | Run `npm install` first — dependencies aren't included in the repo |
+| Page is blank after opening | You opened `index.html` directly — use `http://localhost:3000` instead |
+| `EADDRINUSE: address already in use` | Port 3000 is taken. Stop the other process or set `PORT=3001 npm start` |
+| `node` is not recognised (Windows) | Node.js isn't installed or the terminal wasn't restarted after install |
 
 ---
 
