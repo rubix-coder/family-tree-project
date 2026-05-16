@@ -35,6 +35,21 @@ if ! command -v node &>/dev/null; then
   exit 1
 fi
 
+# ── Check npm ────────────────────────────────────────────────────────
+if ! command -v npm &>/dev/null; then
+  echo "  ERROR: npm is not installed (it normally comes with Node.js)."
+  echo ""
+  echo "  Try reinstalling Node.js from https://nodejs.org"
+  echo "  Or on Linux, install npm separately:"
+  echo ""
+  echo "  Ubuntu / Debian:  sudo apt-get install -y npm"
+  echo "  Fedora / RHEL:    sudo dnf install -y npm"
+  echo "  Arch Linux:       sudo pacman -S npm"
+  echo ""
+  read -rp "  Press Enter to exit..." _
+  exit 1
+fi
+
 # ── Check minimum Node version (18+) ─────────────────────────────────
 NODE_VER=$(node -e "process.exit(parseInt(process.versions.node.split('.')[0]))" 2>/dev/null; echo $?)
 if [ "$NODE_VER" -lt 18 ]; then

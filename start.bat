@@ -27,6 +27,22 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: ── Check npm is installed ────────────────────────────────────────────
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo   ERROR: npm is not installed.
+    echo   npm normally comes bundled with Node.js.
+    echo.
+    echo   Please reinstall Node.js from https://nodejs.org
+    echo   Make sure to restart your computer after reinstalling.
+    echo.
+    echo   Opening the download page now...
+    start https://nodejs.org
+    echo.
+    pause
+    exit /b 1
+)
+
 :: ── Check minimum Node version (18+) ─────────────────────────────────
 for /f "tokens=1 delims=." %%a in ('node -e "process.stdout.write(process.versions.node)"') do set NODE_MAJOR=%%a
 if %NODE_MAJOR% LSS 18 (
