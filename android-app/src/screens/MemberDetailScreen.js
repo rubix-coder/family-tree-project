@@ -127,7 +127,7 @@ export default function MemberDetailScreen({ route, navigation }) {
         <TextInput style={s.input} value={form.birth_place} onChangeText={set('birth_place')} placeholder="City, Country" />
 
         <Text style={s.label}>Father (Paternal Parent)</Text>
-        <View style={s.pickerBox}>
+        <ScrollView style={s.pickerBox} nestedScrollEnabled>
           <TouchableOpacity style={s.clearBtn} onPress={() => set('paternal_parent_id')('')}>
             <Text style={{ color: '#94a3b8', fontSize: 12 }}>Clear</Text>
           </TouchableOpacity>
@@ -137,10 +137,10 @@ export default function MemberDetailScreen({ route, navigation }) {
               <Text style={[s.memberOptText, form.paternal_parent_id === m.id && { color: '#fff' }]}>{m.name}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         <Text style={s.label}>Mother (Maternal Parent)</Text>
-        <View style={s.pickerBox}>
+        <ScrollView style={s.pickerBox} nestedScrollEnabled>
           <TouchableOpacity style={s.clearBtn} onPress={() => set('maternal_parent_id')('')}>
             <Text style={{ color: '#94a3b8', fontSize: 12 }}>Clear</Text>
           </TouchableOpacity>
@@ -150,10 +150,10 @@ export default function MemberDetailScreen({ route, navigation }) {
               <Text style={[s.memberOptText, form.maternal_parent_id === m.id && { color: '#fff' }]}>{m.name}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         <Text style={s.label}>Spouse</Text>
-        <View style={s.pickerBox}>
+        <ScrollView style={s.pickerBox} nestedScrollEnabled>
           <TouchableOpacity style={s.clearBtn} onPress={() => set('spouse_id')('')}>
             <Text style={{ color: '#94a3b8', fontSize: 12 }}>Clear</Text>
           </TouchableOpacity>
@@ -163,7 +163,7 @@ export default function MemberDetailScreen({ route, navigation }) {
               <Text style={[s.memberOptText, form.spouse_id === m.id && { color: '#fff' }]}>{m.name}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         <Text style={s.label}>Bio</Text>
         <TextInput style={[s.input, { height: 100 }]} value={form.bio} onChangeText={set('bio')} placeholder="Short biography..." multiline />
@@ -275,7 +275,7 @@ const s = StyleSheet.create({
   genderRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   genderOpt: { flex: 1, borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 10, padding: 10, alignItems: 'center' },
   genderText: { fontWeight: '600', color: '#64748b', textTransform: 'capitalize' },
-  pickerBox: { borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 10, padding: 8, marginBottom: 16, maxHeight: 160, overflow: 'scroll' },
+  pickerBox: { borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 10, padding: 8, marginBottom: 16, maxHeight: 160 },
   clearBtn: { padding: 6, marginBottom: 4 },
   memberOpt: { padding: 8, borderRadius: 8, marginBottom: 4 },
   memberOptActive: { backgroundColor: '#1a2744' },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -7,7 +7,7 @@ import { setUnauthorizedHandler } from './src/services/api';
 
 export default function App() {
   const [initialRoute, setInitialRoute] = useState(null);
-  const [navigationRef, setNavigationRef] = useState(null);
+  const navigationRef = useRef(null);
 
   useEffect(() => {
     async function bootstrap() {
@@ -22,12 +22,11 @@ export default function App() {
     }
     bootstrap();
 
-    setUnauthorizedHandler(() => {
-      Storage.clear().then(() => {
-        if (navigationRef?.isReady()) {
-          navigationRef.reset({ index: 0, routes: [{ name: 'Auth' }] });
-        }
-      });
+    setUnauthorizedHandler(async () => {
+      await Storage.clear();
+      if (navigationRef.current?.isReady()) {
+        navigationRef.current.reset({ index: 0, routes: [{ name: 'Auth' }] });
+      }
     });
   }, []);
 
@@ -42,10 +41,7 @@ export default function App() {
   return (
     <>
       <StatusBar style="light" />
-      <AppNavigator
-        initialRoute={initialRoute}
-        onNavigatorReady={setNavigationRef}
-      />
+      <AppNavigator initialRoute={initialRoute} navigationRef={navigationRef} />
     </>
   );
 }

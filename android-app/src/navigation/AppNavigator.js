@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -45,9 +45,9 @@ function MainTabs() {
   );
 }
 
-export default function AppNavigator({ initialRoute }) {
+export default function AppNavigator({ initialRoute, navigationRef }) {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName={initialRoute || 'Setup'}
         screenOptions={{ headerShown: false }}
