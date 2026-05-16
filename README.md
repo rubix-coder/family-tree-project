@@ -8,7 +8,7 @@ A family tree platform with social features — build your tree, invite relative
 
 ### Windows — double-click `start.bat`
 
-That's it. The script installs dependencies on first run, starts the server, and opens the app in your browser automatically.
+The script checks for Node.js, installs it guides you if it's missing, installs app dependencies on first run, starts the server, and opens `http://localhost:3000` in your browser — all automatically.
 
 ### Linux / Mac — run `start.sh`
 
@@ -19,24 +19,34 @@ That's it. The script installs dependencies on first run, starts the server, and
 If you see a "permission denied" error, run this once first:
 ```bash
 chmod +x start.sh
+./start.sh
 ```
 
-Then open **`http://localhost:3000`** in your browser (it usually opens automatically).
+The script will detect if Node.js is missing and print the exact install command for your distro (Ubuntu, Fedora, Arch, macOS), then exit so you can install it and run again.
 
 > **Note:** Keep the terminal / command prompt window open while using the app. Closing it stops the server.
 
 ---
 
-## Requirements
+## Node.js — the only requirement
 
-- **Node.js 18 or higher** — download from [nodejs.org](https://nodejs.org) (choose the LTS version)
+The app needs **Node.js 18+** to run. The start scripts detect whether it is installed and guide you through the process if it isn't.
 
-Verify it's installed:
+**If you prefer to install it manually before running the script:**
+
+| Platform | Method |
+|---|---|
+| Windows | Download the LTS installer from [nodejs.org](https://nodejs.org), run it, then restart your PC |
+| Ubuntu / Debian | `curl -fsSL https://deb.nodesource.com/setup_20.x \| sudo -E bash - && sudo apt-get install -y nodejs` |
+| Fedora / RHEL | `curl -fsSL https://rpm.nodesource.com/setup_20.x \| sudo bash - && sudo dnf install -y nodejs` |
+| Arch Linux | `sudo pacman -S nodejs npm` |
+| macOS | `brew install node` or download from [nodejs.org](https://nodejs.org) |
+
+Verify it is installed correctly:
 ```
 node --version
 ```
-
-You should see `v18.x.x` or higher. On Windows, restart your terminal after installing Node.js.
+You should see `v18.x.x` or higher.
 
 ---
 
@@ -106,8 +116,9 @@ family-tree-project/
 
 | Problem | Fix |
 |---|---|
-| `node` is not recognised | Install Node.js from [nodejs.org](https://nodejs.org), then restart your terminal |
+| `start.bat` says Node.js not installed | Follow the on-screen link to [nodejs.org](https://nodejs.org), install, restart your PC, then double-click again |
+| `start.sh` says Node.js not installed | Copy the install command shown on screen for your distro, run it, then run `./start.sh` again |
+| Node.js version too old | Download the latest LTS from [nodejs.org](https://nodejs.org) and reinstall |
 | Page is blank | You opened `index.html` directly — use `http://localhost:3000` instead |
-| `Cannot find module 'express'` | Run `npm install` in the project folder, or use the start script which does this automatically |
-| Port 3000 already in use | Set a different port: `PORT=3001 ./start.sh` (Linux) or edit `start.bat` and change `3000` to `3001` |
-| `permission denied` on start.sh | Run `chmod +x start.sh` once, then try again |
+| Port 3000 already in use | `PORT=3001 ./start.sh` (Linux/Mac) or edit `start.bat` and replace `3000` with `3001` |
+| `permission denied` on start.sh | Run `chmod +x start.sh` once, then `./start.sh` |
