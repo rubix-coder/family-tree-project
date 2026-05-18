@@ -175,6 +175,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .tree-empty p { font-size: 1rem; }
 /* Keep tree-scroll as alias for backward compat (old code may ref it) */
 .tree-scroll { flex: 1; min-height: 0; overflow: hidden; }
+/* Fullscreen */
+.tree-stage:-webkit-full-screen { width: 100vw !important; height: 100vh !important; background: var(--gray-50); }
+.tree-stage:fullscreen { width: 100vw !important; height: 100vh !important; background: var(--gray-50); }
 /* Bulk add member form */
 .bulk-member-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: .5rem; align-items: end; padding: .6rem 0; border-bottom: 1px solid var(--gray-100); }
 .bulk-member-row:last-of-type { border-bottom: none; }

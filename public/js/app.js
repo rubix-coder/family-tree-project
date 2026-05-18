@@ -460,9 +460,10 @@ const App = (() => {
     document.querySelectorAll('.tree-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
     ['viz', 'list', 'feed', 'collab'].forEach(t => {
-      const el = document.getElementById(`tree-tab-${t}`);
-      if (el) el.style.display = t === tab ? 'block' : 'none';
+      const tabEl = document.getElementById(`tree-tab-${t}`);
+      if (tabEl) tabEl.style.display = t === tab ? (t === 'viz' ? 'flex' : 'block') : 'none';
     });
+    if (tab === 'viz') requestAnimationFrame(() => TreeViz.fitView());
     if (tab === 'list') await renderMembersList();
     if (tab === 'feed') await renderTreeFeed();
     if (tab === 'collab') await renderCollaborators();
