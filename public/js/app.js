@@ -432,6 +432,9 @@ const App = (() => {
             ${tree.my_role !== 'viewer' ? `<button class="btn btn-primary btn-sm" onclick="App.showAddMember()">+ Add Member</button>` : ''}
             <button class="btn btn-outline btn-sm" onclick="App.showInviteModal('${tree.id}')">Invite</button>
             ${tree.owner_id === currentUser.id ? `<button class="btn btn-ghost btn-sm" onclick="App.showTreeSettings('${tree.id}')">⚙️ Settings</button>` : ''}
+            ${tree.my_role !== 'viewer' ? `<button class="btn btn-outline btn-sm" onclick="App.importTreeJSON()" title="Import members from a JSON export">↑ Import JSON</button>` : ''}
+            <button class="btn btn-outline btn-sm" onclick="App.exportTreeJSON()" title="Download tree as JSON">↓ JSON</button>
+            <button class="btn btn-outline btn-sm" onclick="App.exportInteractiveHTML()" title="Download as standalone interactive HTML">↓ HTML</button>
           </div>
         </div>
         <div class="tree-viewer">
@@ -1133,6 +1136,370 @@ const App = (() => {
     toast('Invitation declined');
   }
 
+  // ── Import / Export ────────────────────────────────────────────────
+  function exportTreeJSON() {
+    if (!currentTree || !currentMembers.length) return toast('No tree data to export', 'error');
+    const payload = {
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      tree: { name: currentTree.name, description: currentTree.description, privacy: currentTree.privacy },
+      members: currentMembers.map(({ id, name, gender, birth_year, death_year, birth_place, bio,
+        paternal_parent_id, maternal_parent_id, spouse_id }) =>
+        ({ id, name, gender, birth_year, death_year, birth_place, bio, paternal_parent_id, maternal_parent_id, spouse_id }))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${currentTree.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-family-tree.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Tree exported as JSON', 'success');
+  }
+
+  let _pendingImportData = null;
+
+  function importTreeJSON() {
+    if (!currentTree || currentTree.my_role === 'viewer') return toast('Editor access required to import', 'error');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return;
+      let data;
+      try { data = JSON.parse(await file.text()); } catch { return toast('Invalid JSON file', 'error'); }
+      if (!Array.isArray(data.members)) return toast('File does not look like a family tree JSON export', 'error');
+      _pendingImportData = data;
+      const preview = data.members.slice(0, 15).map(m =>
+        `<li>${escapeHtml(m.name)}${m.birth_year ? ` (${m.birth_year})` : ''}</li>`).join('');
+      const extra = data.members.length > 15
+        ? `<li style="color:var(--gray-400)">…and ${data.members.length - 15} more</li>` : '';
+      openModal('import-json-modal', `
+        <p>Found <strong>${data.members.length} member(s)</strong>${data.tree ? ` from <em>${escapeHtml(data.tree.name)}</em>` : ''}.</p>
+        <p class="text-sm text-muted" style="margin:.5rem 0 .75rem">Members will be added to <strong>${escapeHtml(currentTree.name)}</strong>. Existing members are unaffected.</p>
+        <ul class="text-sm" style="max-height:180px;overflow-y:auto;padding-left:1.25rem;margin:0 0 1rem">${preview}${extra}</ul>
+        <div class="modal-footer" style="padding:0;margin-top:1rem">
+          <button class="btn btn-ghost" onclick="App.closeModal('import-json-modal')">Cancel</button>
+          <button class="btn btn-primary" id="do-import-btn" onclick="App._doImportJSON()">Import ${data.members.length} Member(s)</button>
+        </div>`, 'Import Family Tree');
+    };
+    input.click();
+  }
+
+  async function _doImportJSON() {
+    const data = _pendingImportData;
+    if (!data || !currentTree) return;
+    const btn = document.getElementById('do-import-btn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Importing…'; }
+    try {
+      const idMap = {};
+      // Pass 1: create all members without relationships
+      for (const m of data.members) {
+        const created = await API.members.create(currentTree.id, {
+          name: m.name, gender: m.gender || 'other',
+          birth_year: m.birth_year || null, death_year: m.death_year || null,
+          birth_place: m.birth_place || null, bio: m.bio || null
+        });
+        idMap[m.id] = created.id;
+      }
+      // Pass 2: patch relationships with remapped IDs
+      for (const m of data.members) {
+        const updates = {};
+        if (m.paternal_parent_id && idMap[m.paternal_parent_id]) updates.paternal_parent_id = idMap[m.paternal_parent_id];
+        if (m.maternal_parent_id && idMap[m.maternal_parent_id]) updates.maternal_parent_id = idMap[m.maternal_parent_id];
+        if (m.spouse_id && idMap[m.spouse_id]) updates.spouse_id = idMap[m.spouse_id];
+        if (Object.keys(updates).length) await API.members.update(currentTree.id, idMap[m.id], updates);
+      }
+      toast(`Imported ${data.members.length} member(s) successfully`, 'success');
+      closeModal('import-json-modal');
+      _pendingImportData = null;
+      currentMembers = await API.members.list(currentTree.id);
+      TreeViz.update(currentMembers);
+    } catch (ex) {
+      toast(ex.error || 'Import failed', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = `Import ${data.members.length} Member(s)`; }
+    }
+  }
+
+  function exportInteractiveHTML() {
+    if (!currentTree || !currentMembers.length) return toast('No tree data to export', 'error');
+    const members = currentMembers.map(({ id, name, gender, birth_year, death_year, birth_place, bio,
+      paternal_parent_id, maternal_parent_id, spouse_id }) =>
+      ({ id, name, gender, birth_year, death_year, birth_place, bio, paternal_parent_id, maternal_parent_id, spouse_id }));
+    const html = _buildInteractiveHTML({ tree: { name: currentTree.name, description: currentTree.description }, members });
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${currentTree.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-family-tree.html`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Interactive HTML exported', 'success');
+  }
+
+  function _buildInteractiveHTML(data) {
+    const xe = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const dataJson = JSON.stringify(data).replace(/<\/script>/gi, '<\\/script>');
+    const treeName = xe(data.tree.name);
+    const treeDesc = data.tree.description ? xe(data.tree.description) : '';
+    const exportDate = new Date().toLocaleDateString();
+
+    const css = `*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8f5ee;color:#1e293b;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+#hdr{background:#1e3a5f;color:#fff;padding:.75rem 1.25rem;display:flex;align-items:center;gap:1rem;flex-shrink:0}
+#hdr h1{font-size:1.1rem;font-weight:700}
+#hdr .sub{font-size:.78rem;opacity:.7;margin-top:.15rem}
+#tb{background:#fff;border-bottom:1px solid #e2e8f0;padding:.5rem 1rem;display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;flex-shrink:0}
+.tb-btn{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:.3rem .65rem;font-size:.8rem;cursor:pointer;font-weight:500;color:#1e293b;transition:background .15s}
+.tb-btn:hover{background:#e2e8f0}
+.tb-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.tb-sep{width:1px;height:20px;background:#e2e8f0;margin:0 .1rem}
+.tb-lbl{font-size:.78rem;color:#64748b;font-weight:600}
+select.tb-sel{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:.3rem .5rem;font-size:.8rem;cursor:pointer;color:#1e293b}
+#main{display:flex;flex:1;overflow:hidden}
+#tw{flex:1;overflow:auto;cursor:grab;position:relative}
+#tw:active{cursor:grabbing}
+#dp{width:300px;flex-shrink:0;background:#fff;border-left:1px solid #e2e8f0;overflow-y:auto;display:none}
+.dh{background:#f8f5ee;padding:1rem;display:flex;gap:.75rem;align-items:flex-start;border-bottom:1px solid #e2e8f0;position:relative}
+.da{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0}
+.dh h2{font-size:1rem;font-weight:700;color:#1e3a5f;margin-bottom:.25rem}
+.dm{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.35rem}
+.dm span{background:#f1f5f9;border-radius:4px;padding:.15rem .4rem;font-size:.75rem;color:#475569}
+.cx{position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.3rem;cursor:pointer;color:#94a3b8;line-height:1}
+.cx:hover{color:#1e3a5f}
+.db{padding:.75rem 1rem;font-size:.875rem;color:#475569;border-bottom:1px solid #f1f5f9;line-height:1.5}
+.dr{padding:.75rem 1rem}
+.ri{display:flex;gap:.5rem;align-items:baseline;padding:.35rem 0;border-bottom:1px solid #f8f5ee;font-size:.85rem}
+.rl{color:#94a3b8;font-size:.75rem;font-weight:600;width:55px;flex-shrink:0}
+.ri a{color:#1e3a5f;cursor:pointer;font-weight:600;text-decoration:none}
+.ri a:hover{text-decoration:underline}
+.node{cursor:pointer}
+.node rect{transition:stroke-width .1s}
+.node:hover rect{stroke-width:3!important}
+#ft{background:#fff;border-top:1px solid #e2e8f0;padding:.35rem 1rem;font-size:.72rem;color:#94a3b8;text-align:right;flex-shrink:0}`;
+
+    const embeddedJS = `(function(){
+var D=FAMILY_TREE,members=D.members;
+var NW=150,NH=72,HG=60,VG=100,scale=1,vf='all',sel=null;
+var fid=members.length?members[members.length-1].id:null;
+var sm={},acof={};
+for(var m of members){
+  if(m.spouse_id){sm[m.id]=m.spouse_id;sm[m.spouse_id]=m.id;}
+  for(var pid of [m.paternal_parent_id,m.maternal_parent_id].filter(Boolean)){
+    if(!acof[pid])acof[pid]=[];
+    if(!acof[pid].includes(m.id))acof[pid].push(m.id);
+  }
+}
+function byId(id){return members.find(function(m){return m.id===id;});}
+function xe(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function getVis(){
+  if(vf==='all')return members.slice();
+  var vis=new Set();
+  function walk(id,d){
+    if(!id||vis.has(id)||d>100)return;
+    var m=byId(id);if(!m)return;
+    vis.add(id);var sid=sm[id];if(sid)vis.add(sid);
+    walk(vf==='paternal'?m.paternal_parent_id:m.maternal_parent_id,d+1);
+  }
+  walk(fid,0);
+  return members.filter(function(m){return vis.has(m.id);});
+}
+function layout(vis){
+  var pos={},placed=new Set(),cof={};
+  for(var m of vis)for(var pid of [m.paternal_parent_id,m.maternal_parent_id].filter(Boolean)){
+    if(!cof[pid])cof[pid]=[];if(!cof[pid].includes(m.id))cof[pid].push(m.id);
+  }
+  function gc(id){return(cof[id]||[]).map(function(cid){return vis.find(function(m){return m.id===cid;});}).filter(Boolean);}
+  var hasP=new Set(vis.filter(function(m){return m.paternal_parent_id||m.maternal_parent_id;}).map(function(m){return m.id;}));
+  var roots=vis.filter(function(m){
+    if(hasP.has(m.id))return false;
+    var sid=sm[m.id];if(!sid)return true;
+    if(hasP.has(sid))return false;return m.id<sid;
+  });
+  if(!roots.length&&vis.length)roots.push(vis[0]);
+  function place(m,depth,col){
+    if(placed.has(m.id))return col;
+    placed.add(m.id);
+    var cids=new Set();
+    gc(m.id).forEach(function(c){cids.add(c.id);});
+    var sid=sm[m.id];if(sid)gc(sid).forEach(function(c){cids.add(c.id);});
+    var kids=Array.from(cids).map(function(id){return vis.find(function(m){return m.id===id;});}).filter(Boolean);
+    var cols=[],c=col;
+    for(var kid of kids){
+      if(placed.has(kid.id))continue;
+      c=place(kid,depth+1,c);
+      cols.push(pos[kid.id]?pos[kid.id].cx:c);c++;
+    }
+    var x=cols.length?(Math.min.apply(null,cols)+Math.max.apply(null,cols))/2:col;
+    pos[m.id]={cx:x,cy:depth};
+    if(sid&&!placed.has(sid)){
+      var sp=vis.find(function(m){return m.id===sid;});
+      if(sp){placed.add(sp.id);pos[sp.id]={cx:x+1,cy:depth};c=Math.max(c,x+2);}
+    }
+    return cols.length?c:col+1;
+  }
+  var sc=0;
+  roots.forEach(function(r){if(!placed.has(r.id))sc=place(r,0,sc)+1;});
+  var ex=0;vis.forEach(function(m){if(!pos[m.id]){pos[m.id]={cx:sc+ex,cy:0};ex++;}});
+  return pos;
+}
+function px(cx,cy){return{x:cx*(NW+HG)+40,y:cy*(NH+VG)+40};}
+function render(){
+  var vis=getVis(),pos=layout(vis);
+  var tw=document.getElementById('tw');
+  if(!vis.length){tw.innerHTML='<p style="text-align:center;padding:3rem;color:#64748b">No members to display.</p>';return;}
+  var mCx=Math.max.apply(null,Object.values(pos).map(function(p){return p.cx;}));
+  var mCy=Math.max.apply(null,Object.values(pos).map(function(p){return p.cy;}));
+  var W=(mCx+2)*(NW+HG)+80,H=(mCy+1)*(NH+VG)+80;
+  var edges='',drawn=new Set();
+  for(var m of vis){
+    var sid=sm[m.id];
+    if(sid&&pos[m.id]&&pos[sid]){
+      var k=[m.id,sid].sort().join('|');
+      if(!drawn.has(k)){
+        drawn.add(k);
+        var p1=px(pos[m.id].cx,pos[m.id].cy),p2=px(pos[sid].cx,pos[sid].cy);
+        edges+='<line x1="'+(p1.x+NW/2)+'" y1="'+(p1.y+NH/2)+'" x2="'+(p2.x+NW/2)+'" y2="'+(p2.y+NH/2)+'" stroke="#f472b6" stroke-width="2" stroke-dasharray="6,3" opacity="0.8"/>';
+      }
+    }
+  }
+  for(var m of vis){
+    if(!pos[m.id])continue;
+    var mp=px(pos[m.id].cx,pos[m.id].cy);
+    var cx2=mp.x+NW/2,ty=mp.y;
+    var pp=m.paternal_parent_id&&pos[m.paternal_parent_id]?px(pos[m.paternal_parent_id].cx,pos[m.paternal_parent_id].cy):null;
+    var mp2=m.maternal_parent_id&&pos[m.maternal_parent_id]?px(pos[m.maternal_parent_id].cx,pos[m.maternal_parent_id].cy):null;
+    var fx,fy,st;
+    if(pp&&mp2&&m.paternal_parent_id!==m.maternal_parent_id){fx=(pp.x+NW/2+mp2.x+NW/2)/2;fy=pp.y+NH;st='#6366f1';}
+    else if(pp){fx=pp.x+NW/2;fy=pp.y+NH;st='#c9a84c';}
+    else if(mp2){fx=mp2.x+NW/2;fy=mp2.y+NH;st='#a78bfa';}
+    else continue;
+    var ctY=fy+(ty-fy)*0.5;
+    edges+='<path d="M'+fx+','+fy+' C'+fx+','+ctY+' '+cx2+','+ctY+' '+cx2+','+ty+'" stroke="'+st+'" stroke-width="2" fill="none" opacity="0.8"/>';
+  }
+  var nodes='';
+  for(var m of vis){
+    var p=pos[m.id];if(!p)continue;
+    var pt=px(p.cx,p.cy),x=pt.x,y=pt.y;
+    var gc=m.gender==='male'?'#3b82f6':m.gender==='female'?'#ec4899':'#8b5cf6';
+    var init=m.name.split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+    var ls=[m.birth_year,m.death_year].filter(Boolean).join(' – ');
+    var fs=m.name.length>14?'10':m.name.length>10?'11':'12';
+    var dn=m.name.length>16?m.name.slice(0,15)+'…':m.name;
+    var isSel=m.id===sel;
+    nodes+='<g class="node" onclick="pickMember(\''+m.id+'\')">'+
+      '<rect x="'+x+'" y="'+y+'" width="'+NW+'" height="'+NH+'" rx="10" fill="white" stroke="'+gc+'" stroke-width="'+(isSel?3.5:2)+'" filter="url(#sh)" '+(isSel?'stroke-dasharray="none"':'')+' />'+
+      '<circle cx="'+(x+26)+'" cy="'+(y+26)+'" r="18" fill="'+gc+'" opacity="0.2"/>'+
+      '<text x="'+(x+26)+'" y="'+(y+31)+'" text-anchor="middle" font-size="12" font-weight="700" fill="'+gc+'">'+xe(init)+'</text>'+
+      '<text x="'+(x+54)+'" y="'+(y+24)+'" font-size="'+fs+'" font-weight="600" fill="#1e293b" dominant-baseline="middle">'+xe(dn)+'</text>'+
+      (ls?'<text x="'+(x+54)+'" y="'+(y+42)+'" font-size="9" fill="#64748b">'+xe(ls)+'</text>':'')+
+      (m.death_year?'<text x="'+(x+NW-22)+'" y="'+(y+13)+'" font-size="10" text-anchor="end" fill="#94a3b8">✝</text>':'')+
+      '</g>';
+  }
+  tw.innerHTML='<svg id="tsv" width="'+W+'" height="'+H+'" xmlns="http://www.w3.org/2000/svg" style="transform:scale('+scale+');transform-origin:top left">'+
+    '<defs><filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000022"/></filter></defs>'+
+    edges+nodes+'</svg>';
+  setupPan();
+}
+function setupPan(){
+  var w=document.getElementById('tw');if(!w)return;
+  var pan=false,sx=0,sy=0,sl=0,st=0;
+  w.addEventListener('mousedown',function(e){
+    if(e.target.closest('.node'))return;
+    pan=true;sx=e.clientX;sy=e.clientY;sl=w.scrollLeft;st=w.scrollTop;w.style.cursor='grabbing';
+  });
+  window.addEventListener('mousemove',function(e){if(!pan)return;w.scrollLeft=sl-(e.clientX-sx);w.scrollTop=st-(e.clientY-sy);});
+  window.addEventListener('mouseup',function(){pan=false;if(w)w.style.cursor='';});
+  w.addEventListener('touchstart',function(e){if(e.touches.length!==1)return;pan=true;sx=e.touches[0].clientX;sy=e.touches[0].clientY;sl=w.scrollLeft;st=w.scrollTop;},{passive:true});
+  w.addEventListener('touchmove',function(e){if(!pan||e.touches.length!==1)return;w.scrollLeft=sl-(e.touches[0].clientX-sx);w.scrollTop=st-(e.touches[0].clientY-sy);},{passive:true});
+  w.addEventListener('touchend',function(){pan=false;});
+}
+window.pickMember=function(id){
+  sel=id;render();
+  var m=byId(id);if(!m)return;
+  var dp=document.getElementById('dp');
+  var gc=m.gender==='male'?'#3b82f6':m.gender==='female'?'#ec4899':'#8b5cf6';
+  var init=m.name.split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+  var father=byId(m.paternal_parent_id),mother=byId(m.maternal_parent_id),spouse=byId(m.spouse_id);
+  var kids=members.filter(function(x){return x.paternal_parent_id===id||x.maternal_parent_id===id;});
+  var rel='';
+  if(father)rel+='<div class="ri"><span class="rl">Father</span><a onclick="pickMember(\''+father.id+'\')">'+xe(father.name)+'</a></div>';
+  if(mother)rel+='<div class="ri"><span class="rl">Mother</span><a onclick="pickMember(\''+mother.id+'\')">'+xe(mother.name)+'</a></div>';
+  if(spouse)rel+='<div class="ri"><span class="rl">Spouse</span><a onclick="pickMember(\''+spouse.id+'\')">'+xe(spouse.name)+'</a></div>';
+  if(kids.length)rel+='<div class="ri"><span class="rl">Children</span><span>'+kids.map(function(c){return'<a onclick="pickMember(\''+c.id+'\')">'+xe(c.name)+'</a>';}).join(', ')+'</span></div>';
+  dp.innerHTML=
+    '<div class="dh">'+
+      '<div class="da" style="background:'+gc+'22;color:'+gc+'">'+xe(init)+'</div>'+
+      '<div><h2>'+xe(m.name)+'</h2>'+
+      '<div class="dm">'+
+        (m.birth_year?'<span>b. '+m.birth_year+'</span>':'')+
+        (m.death_year?'<span>d. '+m.death_year+'</span>':'')+
+        (m.birth_place?'<span>📍 '+xe(m.birth_place)+'</span>':'')+
+        '<span style="color:'+gc+'">'+
+          (m.gender==='male'?'♂ Male':m.gender==='female'?'♀ Female':'⚧ Other')+
+        '</span>'+
+      '</div></div>'+
+      '<button class="cx" onclick="closeDetail()">×</button>'+
+    '</div>'+
+    (m.bio?'<p class="db">'+xe(m.bio)+'</p>':'')+
+    (rel?'<div class="dr">'+rel+'</div>':'');
+  dp.style.display='block';
+};
+window.closeDetail=function(){sel=null;document.getElementById('dp').style.display='none';render();};
+window.doZoom=function(d){scale=Math.min(2.5,Math.max(0.25,scale+d));var s=document.getElementById('tsv');if(s)s.style.transform='scale('+scale+')';};
+window.resetView=function(){scale=1;var s=document.getElementById('tsv');if(s)s.style.transform='scale(1)';var w=document.getElementById('tw');if(w){w.scrollLeft=0;w.scrollTop=0;}};
+window.setFilter=function(f,btn){
+  vf=f;
+  document.querySelectorAll('.tb-btn[data-f]').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  render();
+};
+window.setFocal=function(id){fid=id;render();};
+document.addEventListener('keydown',function(e){if(e.key==='Escape')window.closeDetail();});
+var fsel=document.getElementById('fsel');
+fsel.innerHTML=members.map(function(m){return'<option value="'+xe(m.id)+'"'+(m.id===fid?' selected':'')+'>'+xe(m.name)+'</option>';}).join('');
+fsel.addEventListener('change',function(e){window.setFocal(e.target.value);});
+render();
+})();`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${treeName} — Family Tree</title>
+<style>${css}</style>
+</head>
+<body>
+<script>const FAMILY_TREE = ${dataJson};<\/script>
+<div id="hdr">
+  <div>
+    <h1>${treeName}</h1>
+    ${treeDesc ? `<div class="sub">${treeDesc}</div>` : ''}
+  </div>
+</div>
+<div id="tb">
+  <span class="tb-lbl">View from:</span>
+  <select class="tb-sel" id="fsel" onchange="setFocal(this.value)"></select>
+  <div class="tb-sep"></div>
+  <button class="tb-btn active" data-f="all" onclick="setFilter('all',this)">All</button>
+  <button class="tb-btn" data-f="paternal" onclick="setFilter('paternal',this)">👨 Paternal</button>
+  <button class="tb-btn" data-f="maternal" onclick="setFilter('maternal',this)">👩 Maternal</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="doZoom(0.2)" title="Zoom in">+</button>
+  <button class="tb-btn" onclick="doZoom(-0.2)" title="Zoom out">−</button>
+  <button class="tb-btn" onclick="resetView()" title="Reset view">⊙</button>
+</div>
+<div id="main">
+  <div id="tw"></div>
+  <div id="dp"></div>
+</div>
+<div id="ft">Exported ${exportDate} · ${data.members.length} member(s) · FamilyTree</div>
+<script>
+${embeddedJS}
+<\/script>
+</body>
+</html>`;
+  }
+
   // ── Modal Helpers ──────────────────────────────────────────────────
   function openModal(id, bodyHTML, title = '') {
     let overlay = document.getElementById(id);
@@ -1230,6 +1597,7 @@ const App = (() => {
     renderNotificationsPage, toggleNotifDropdown, markAllRead,
     showInvitePage, acceptInvite, declineInvite,
     closeModal, openModal,
+    exportTreeJSON, importTreeJSON, _doImportJSON, exportInteractiveHTML,
     loadMoreFeed: async (page) => {
       const data = await API.social.feed(page);
       const treesData = await API.trees.list();
