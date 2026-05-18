@@ -1,6 +1,6 @@
-node_modules/
 data/
-uploads/*
+*.db
+node_modules/
 !uploads/.gitkeep
 .env
-*.db
+
