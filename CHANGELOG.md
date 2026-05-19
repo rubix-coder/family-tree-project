@@ -5,6 +5,27 @@ Format: `[Version] — YYYY-MM-DD`
 
 ---
 
+## [2.0.0] — 2026-05-19
+
+### Added
+- **Multi-spouse support** — any person can now have two or more partners. Stored as a `partner_ids` JSON array column alongside the existing `spouse_id`. The member form gains an "Additional Partners" multi-select field. On import/export the IDs are correctly remapped.
+- **Side-by-side partner layout** — partners are positioned around the focal person (left/right symmetrically for even counts, centred for odd). Dashed pink connector lines with a ♥ heart at the midpoint mark each partnership.
+- **S-curve lineage edges** — lineage lines are now smooth cubic bezier curves flowing from parent-bottom to child-top. Eliminates sharp horizontal spines and makes crossing lines far less cluttered.
+- **Generation color bands** — each generation row has a subtle tinted background. Edge colors cycle through a seven-color palette (violet → blue → teal → green → amber → red → pink) keyed by generation depth.
+- **Full-width tree view** — the tree page expands to full browser width via a `.tree-page` CSS class; all other pages keep their max-width container.
+- **Search zoom with context** — searching for a member now zooms to a bounding box that includes the match plus one generation above and one below.
+- **Members tab scroll** — the Members, Feed, and Collaborators tabs are now properly scrollable inside the fixed-height tree viewer (tested with 185+ members).
+
+### Fixed
+- **Node overlaps** — layout algorithm now uses integer column origins clamped to `leftCol`; guarantees zero overlap even in large trees with many sibling groups.
+- **Out-of-generation nodes** — fallback placement infers the correct row from visible relatives (parent, partner, child) instead of always placing stray nodes at row 0.
+
+### Removed
+- Android app (`android-app/`) removed from the repository; the web app is the maintained platform.
+- Legacy standalone `family-tree.html` removed.
+
+---
+
 ## [1.4.0] — 2026-05-09
 
 ### Added — Android App (React Native / Expo)
@@ -58,4 +79,4 @@ Format: `[Version] — YYYY-MM-DD`
 - SPA frontend with hash-based routing (no framework); Navy `#1a2744` + Gold `#c9a84c` design system
 - Interactive SVG tree visualisation: BFS layout, bidirectional spouse midpoint edges, zoom/pan, node tooltips
 - Responsive member cards with gender-coloured avatars and initials
-- `family-tree.html` — legacy single-file offline app (preserved for reference)
+- `family-tree.html` — legacy single-file offline app (removed in v2.0.0)
