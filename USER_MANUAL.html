@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FamilyTree Social — User Manual</title>
+<style>
+  :root {
+    --navy: #1a2744;
+    --navy-light: #1e3a5f;
+    --gold: #c9a84c;
+    --blue: #2563eb;
+    --teal: #0891b2;
+    --green: #059669;
+    --red: #dc2626;
+    --pink: #db2777;
+    --purple: #7c3aed;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-800: #1e293b;
+    --shadow: 0 2px 12px rgba(0,0,0,.08);
+    --radius: 10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f4f6fa;
+    color: var(--gray-800);
+    line-height: 1.6;
+  }
+
+  /* ── COVER ── */
+  .cover {
+    background: linear-gradient(135deg, var(--navy) 0%, #1e3a5f 60%, #1e4d7a 100%);
+    color: #fff;
+    padding: 4rem 2rem 3rem;
+    text-align: center;
+  }
+  .cover-logo { font-size: 4rem; margin-bottom: 1rem; }
+  .cover h1 { font-size: 2.6rem; font-weight: 800; margin-bottom: .5rem; }
+  .cover .subtitle { font-size: 1.1rem; opacity: .75; margin-bottom: 2rem; }
+  .cover-meta { display: flex; gap: 1.5rem; justify-content: center; font-size: .85rem; opacity: .6; }
+
+  /* ── LAYOUT ── */
+  .page { display: flex; max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; gap: 2rem; }
+  .toc { width: 240px; flex-shrink: 0; position: sticky; top: 1.5rem; align-self: flex-start; }
+  .content { flex: 1; min-width: 0; }
+
+  /* ── TOC ── */
+  .toc-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    font-size: .85rem;
+  }
+  .toc-title { font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--gray-500); margin-bottom: .75rem; }
+  .toc-list { list-style: none; }
+  .toc-list li { margin-bottom: .15rem; }
+  .toc-list a { color: var(--gray-600); text-decoration: none; display: block; padding: .25rem .5rem; border-radius: 6px; transition: background .15s, color .15s; }
+  .toc-list a:hover { background: var(--gray-100); color: var(--navy); }
+  .toc-list .toc-sub { padding-left: 1rem; font-size: .82rem; }
+  .toc-list .toc-num { color: var(--gold); font-weight: 700; margin-right: .3rem; }
+
+  /* ── SECTIONS ── */
+  .section { margin-bottom: 3rem; }
+  .section-header {
+    display: flex; align-items: center; gap: .75rem;
+    margin-bottom: 1.5rem; padding-bottom: .75rem;
+    border-bottom: 2px solid var(--gray-200);
+  }
+  .section-num {
+    background: var(--navy); color: #fff;
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .85rem; font-weight: 700; flex-shrink: 0;
+  }
+  .section-title { font-size: 1.5rem; font-weight: 800; color: var(--navy); }
+  h3 { font-size: 1.1rem; font-weight: 700; color: var(--navy-light); margin: 1.5rem 0 .75rem; }
+  h4 { font-size: .95rem; font-weight: 700; color: var(--gray-600); margin: 1.25rem 0 .5rem; text-transform: uppercase; letter-spacing: .04em; }
+  p { margin-bottom: .85rem; color: var(--gray-600); }
+  ul, ol { padding-left: 1.4rem; margin-bottom: .85rem; color: var(--gray-600); }
+  li { margin-bottom: .35rem; }
+
+  /* ── CARDS ── */
+  .card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .card-row { display: flex; gap: 1.25rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .card-row .card { flex: 1; min-width: 220px; margin-bottom: 0; }
+
+  /* ── SCREEN MOCKUPS ── */
+  .mockup {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin: 1.25rem 0;
+    font-size: .82rem;
+  }
+  .mockup-bar {
+    background: var(--navy);
+    color: #fff;
+    padding: .55rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    font-size: .78rem;
+  }
+  .mockup-bar .dots { display: flex; gap: .35rem; }
+  .mockup-bar .dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.3); }
+  .mockup-url { background: rgba(255,255,255,.15); border-radius: 4px; padding: .2rem .6rem; font-size: .72rem; flex: 1; color: rgba(255,255,255,.7); }
+  .mockup-body { padding: 1rem; }
+
+  /* App header mockup */
+  .app-header-mock {
+    background: var(--navy);
+    color: #fff;
+    padding: .7rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: .82rem;
+  }
+  .app-header-mock .logo { font-weight: 800; font-size: .95rem; }
+  .search-mock { background: rgba(255,255,255,.15); border-radius: 6px; padding: .3rem .75rem; flex: 1; max-width: 280px; font-size: .75rem; color: rgba(255,255,255,.6); }
+  .header-right { display: flex; align-items: center; gap: .6rem; margin-left: auto; }
+  .badge-mock { background: var(--red); color: #fff; border-radius: 9px; padding: .05rem .35rem; font-size: .65rem; font-weight: 700; }
+
+  /* Sidebar mockup */
+  .app-layout-mock { display: flex; min-height: 260px; font-size: .8rem; }
+  .sidebar-mock { width: 150px; background: #fff; border-right: 1px solid var(--gray-200); padding: .75rem; flex-shrink: 0; }
+  .sidebar-mock .nav-item { display: flex; align-items: center; gap: .5rem; padding: .45rem .6rem; border-radius: 6px; color: var(--gray-600); margin-bottom: .1rem; cursor: pointer; }
+  .sidebar-mock .nav-item.active { background: rgba(26,39,68,.08); color: var(--navy); font-weight: 600; }
+  .content-mock { flex: 1; padding: 1rem; background: var(--gray-50); }
+
+  /* Tree canvas mockup */
+  .tree-canvas-mock {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .tree-toolbar-mock {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--gray-200);
+    background: #fff;
+    flex-wrap: wrap;
+  }
+  .tb-btn-mock {
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    padding: .28rem .6rem;
+    font-size: .73rem;
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+  .tb-btn-mock.active { background: var(--navy); color: #fff; }
+  .tb-sep-mock { width: 1px; height: 18px; background: var(--gray-200); margin: 0 .1rem; }
+  .tree-svg-mock { padding: 1.5rem; min-height: 160px; display: flex; align-items: center; justify-content: center; }
+
+  /* SVG nodes for mockup */
+  .node-mock {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 .75rem;
+  }
+  .node-box {
+    background: #fff;
+    border: 2px solid var(--navy);
+    border-radius: 8px;
+    padding: .4rem .75rem;
+    text-align: center;
+    font-size: .73rem;
+    min-width: 90px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    position: relative;
+  }
+  .node-box.female { border-color: var(--pink); }
+  .node-box.highlight { border-color: var(--gold); background: #fffbf0; box-shadow: 0 0 0 3px rgba(201,168,76,.3); }
+  .node-name { font-weight: 700; color: var(--navy); font-size: .75rem; }
+  .node-years { font-size: .67rem; color: var(--gray-400); margin-top: .1rem; }
+  .partner-line {
+    display: flex;
+    align-items: center;
+  }
+  .partner-dash { flex: 1; height: 2px; border-top: 2px dashed var(--pink); min-width: 20px; }
+  .partner-heart { color: var(--pink); font-size: .8rem; }
+
+  /* Generation band colors */
+  .gen-band-0 { background: rgba(124,58,237,.06); }
+  .gen-band-1 { background: rgba(37,99,235,.06); }
+  .gen-band-2 { background: rgba(8,145,178,.06); }
+
+  /* ── ROLE BADGES ── */
+  .role-badge {
+    display: inline-block;
+    padding: .15rem .55rem;
+    border-radius: 20px;
+    font-size: .75rem;
+    font-weight: 600;
+  }
+  .role-owner { background: rgba(201,168,76,.15); color: #8a6a10; }
+  .role-editor { background: rgba(37,99,235,.12); color: #1d4ed8; }
+  .role-viewer { background: rgba(100,116,139,.12); color: #475569; }
+
+  /* Privacy badges */
+  .priv-badge {
+    display: inline-block; padding: .15rem .55rem;
+    border-radius: 20px; font-size: .72rem; font-weight: 600;
+  }
+  .priv-family { background: rgba(8,145,178,.12); color: #0369a1; }
+  .priv-private { background: rgba(220,38,38,.1); color: #b91c1c; }
+  .priv-public { background: rgba(5,150,105,.12); color: #047857; }
+
+  /* ── CALLOUT BOXES ── */
+  .callout {
+    display: flex; gap: .75rem; padding: .9rem 1rem;
+    border-radius: 8px; margin: 1rem 0; font-size: .88rem;
+  }
+  .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout-body { flex: 1; }
+  .callout-body strong { display: block; margin-bottom: .2rem; }
+  .callout.tip { background: rgba(8,145,178,.08); border-left: 3px solid var(--teal); }
+  .callout.note { background: rgba(201,168,76,.1); border-left: 3px solid var(--gold); }
+  .callout.warn { background: rgba(220,38,38,.07); border-left: 3px solid var(--red); }
+
+  /* ── STEP LIST ── */
+  .steps { list-style: none; padding: 0; counter-reset: steps; }
+  .steps li {
+    counter-increment: steps;
+    display: flex; gap: .75rem; align-items: flex-start;
+    margin-bottom: .75rem; color: var(--gray-600);
+  }
+  .steps li::before {
+    content: counter(steps);
+    background: var(--navy); color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .72rem; font-weight: 700; flex-shrink: 0; margin-top: .15rem;
+  }
+
+  /* ── KEY-VALUE TABLE ── */
+  .kv-table { width: 100%; border-collapse: collapse; margin: .75rem 0 1rem; font-size: .87rem; }
+  .kv-table th { text-align: left; padding: .5rem .75rem; background: var(--gray-100); color: var(--gray-600); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--gray-200); }
+  .kv-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
+  .kv-table tr:last-child td { border-bottom: none; }
+
+  /* ── SHORTCUT CHIPS ── */
+  kbd {
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 4px;
+    padding: .1rem .4rem;
+    font-size: .78rem;
+    font-family: monospace;
+    color: var(--gray-800);
+  }
+
+  /* ── ICON LABELS ── */
+  .icon-row { display: flex; align-items: center; gap: .6rem; margin: .4rem 0; }
+  .icon-label { font-size: .85rem; }
+
+  /* ── FOOTER ── */
+  .manual-footer {
+    background: var(--navy);
+    color: rgba(255,255,255,.5);
+    text-align: center;
+    padding: 2rem;
+    font-size: .82rem;
+    margin-top: 3rem;
+  }
+
+  /* ── FEATURE GRID ── */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0; }
+  .feature-card {
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid var(--gray-200);
+    padding: 1rem;
+    text-align: center;
+  }
+  .feature-card .fi { font-size: 1.8rem; margin-bottom: .5rem; }
+  .feature-card .ft { font-weight: 700; font-size: .88rem; color: var(--navy); margin-bottom: .3rem; }
+  .feature-card .fd { font-size: .78rem; color: var(--gray-500); line-height: 1.4; }
+
+  /* ── COLOR SWATCH ── */
+  .gen-colors { display: flex; gap: .4rem; margin: .5rem 0; flex-wrap: wrap; }
+  .gen-swatch { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: .6rem; color: #fff; font-weight: 700; }
+
+  /* ── TAB MOCK ── */
+  .tab-row { display: flex; border-bottom: 2px solid var(--gray-200); margin-bottom: 1rem; }
+  .tab-item { padding: .5rem 1rem; font-size: .82rem; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab-item.active { color: var(--navy); font-weight: 700; border-bottom-color: var(--navy); }
+
+  /* ── PRINT ── */
+  @media print {
+    .toc { display: none; }
+    .page { padding: 0; }
+    .mockup { break-inside: avoid; }
+  }
+
+  @media (max-width: 800px) {
+    .page { flex-direction: column; }
+    .toc { width: 100%; position: static; }
+    .cover h1 { font-size: 1.8rem; }
+    .card-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════ COVER ══════════════════════════════ -->
+<div class="cover">
+  <div class="cover-logo">🌳</div>
+  <h1>FamilyTree Social</h1>
+  <div class="subtitle">User Manual — Complete Guide to All Features</div>
+  <div class="cover-meta">
+    <span>Version 2.0</span>
+    <span>·</span>
+    <span>May 2026</span>
+    <span>·</span>
+    <span>Web Application</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════ PAGE ══════════════════════════════ -->
+<div class="page">
+
+  <!-- ── TABLE OF CONTENTS ── -->
+  <aside class="toc">
+    <div class="toc-card">
+      <div class="toc-title">Contents</div>
+      <ul class="toc-list">
+        <li><a href="#s1"><span class="toc-num">1</span>Getting Started</a></li>
+        <li><a href="#s2"><span class="toc-num">2</span>Navigation Overview</a></li>
+        <li><a href="#s3"><span class="toc-num">3</span>Dashboard</a></li>
+        <li><a href="#s4"><span class="toc-num">4</span>Family Trees</a></li>
+        <li>
+          <a href="#s5"><span class="toc-num">5</span>Tree View</a>
+          <ul class="toc-list">
+            <li><a class="toc-sub" href="#s5-viz">Visualization</a></li>
+            <li><a class="toc-sub" href="#s5-members">Members Tab</a></li>
+            <li><a class="toc-sub" href="#s5-feed">Feed Tab</a></li>
+            <li><a class="toc-sub" href="#s5-people">People Tab</a></li>
+          </ul>
+        </li>
+        <li>
+          <a href="#s6"><span class="toc-num">6</span>Managing Members</a>
+          <ul class="toc-list">
+            <li><a class="toc-sub" href="#s6-add">Adding Members</a></li>
+            <li><a class="toc-sub" href="#s6-edit">Editing Members</a></li>
+            <li><a class="toc-sub" href="#s6-multi">Multiple Partners</a></li>
+            <li><a class="toc-sub" href="#s6-photo">Photos</a></li>
+          </ul>
+        </li>
+        <li><a href="#s7"><span class="toc-num">7</span>Social Features</a></li>
+        <li><a href="#s8"><span class="toc-num">8</span>Collaboration</a></li>
+        <li><a href="#s9"><span class="toc-num">9</span>Import &amp; Export</a></li>
+        <li><a href="#s10"><span class="toc-num">10</span>Profile &amp; Settings</a></li>
+        <li><a href="#s11"><span class="toc-num">11</span>Notifications</a></li>
+        <li><a href="#s12"><span class="toc-num">12</span>Troubleshooting</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <!-- ── MAIN CONTENT ── -->
+  <main class="content">
+
+    <!-- ══ 1. GETTING STARTED ══ -->
+    <div class="section" id="s1">
+      <div class="section-header">
+        <div class="section-num">1</div>
+        <div class="section-title">Getting Started</div>
+      </div>
+
+      <h3>Starting the Application</h3>
+      <p>FamilyTree Social runs locally on your computer. No internet connection or cloud account is needed beyond your local network.</p>
+
+      <div class="card-row">
+        <div class="card">
+          <h4>🪟 Windows</h4>
+          <ol class="steps">
+            <li>Double-click <strong>start.bat</strong> in the project folder.</li>
+            <li>If Node.js is not installed, the script installs it automatically via <code>winget</code>.</li>
+            <li>A browser window opens at <strong>http://localhost:3000</strong>.</li>
+            <li>Keep the command prompt open while using the app.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h4>🐧 Linux / 🍎 Mac</h4>
+          <ol class="steps">
+            <li>Open a terminal in the project folder.</li>
+            <li>Run <code>./start.sh</code> (or <code>chmod +x start.sh &amp;&amp; ./start.sh</code> the first time).</li>
+            <li>Node.js installs automatically via <code>apt</code>, <code>brew</code>, etc. if needed.</li>
+            <li>Browser opens at <strong>http://localhost:3000</strong>.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="callout tip">
+        <div class="callout-icon">💡</div>
+        <div class="callout-body"><strong>Port conflict?</strong> Run <code>PORT=3001 ./start.sh</code> (Linux/Mac) or edit <code>start.bat</code> and replace <code>3000</code> with any free port number.</div>
+      </div>
+
+      <h3>Creating an Account</h3>
+      <p>When you visit the app for the first time you'll see the sign-in screen. Click <strong>Create Account</strong> to register.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="mockup-url">http://localhost:3000</div>
+        </div>
+        <div class="mockup-body" style="display:flex;justify-content:center;padding:1.5rem">
+          <div style="background:#fff;border-radius:12px;padding:1.75rem;width:340px;box-shadow:var(--shadow)">
+            <div style="text-align:center;margin-bottom:1.25rem">
+              <div style="font-size:2rem">🌳</div>
+              <div style="font-weight:800;font-size:1.1rem;color:var(--navy);margin:.25rem 0">FamilyTree Social</div>
+              <div style="font-size:.78rem;color:var(--gray-400)">Connect your roots, share your story</div>
+            </div>
+            <div style="display:flex;border-bottom:2px solid var(--gray-200);margin-bottom:1.1rem">
+              <div style="padding:.45rem 1rem;font-size:.82rem;color:var(--gray-400);cursor:pointer">Sign In</div>
+              <div style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;color:var(--navy);border-bottom:2px solid var(--navy);margin-bottom:-2px;cursor:pointer">Create Account</div>
+            </div>
+            <div style="display:flex;gap:.75rem;margin-bottom:.65rem">
+              <div style="flex:1">
+                <div style="font-size:.73rem;font-weight:600;color:var(--gray-500);margin-bottom:.3rem">Display Name</div>
+                <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.4rem .6rem;font-size:.78rem;color:var(--gray-400)">John Smith</div>
+              </div>
+              <div style="flex:1">
+                <div style="font-size:.73rem;font-weight:600;color:var(--gray-500);margin-bottom:.3rem">Username</div>
+                <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.4rem .6rem;font-size:.78rem;color:var(--gray-400)">johnsmith</div>
+              </div>
+            </div>
+            <div style="margin-bottom:.65rem">
+              <div style="font-size:.73rem;font-weight:600;color:var(--gray-500);margin-bottom:.3rem">Email</div>
+              <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.4rem .6rem;font-size:.78rem;color:var(--gray-400)">john@example.com</div>
+            </div>
+            <div style="margin-bottom:1rem">
+              <div style="font-size:.73rem;font-weight:600;color:var(--gray-500);margin-bottom:.3rem">Password</div>
+              <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.4rem .6rem;font-size:.78rem;color:var(--gray-400)">••••••••</div>
+            </div>
+            <div style="background:var(--navy);color:#fff;border-radius:7px;padding:.55rem;text-align:center;font-size:.82rem;font-weight:600">Create Account</div>
+          </div>
+        </div>
+      </div>
+
+      <table class="kv-table">
+        <tr><th>Field</th><th>Description</th></tr>
+        <tr><td><strong>Display Name</strong></td><td>Your real name shown to family members (e.g. "Jane Smith").</td></tr>
+        <tr><td><strong>Username</strong></td><td>A short handle used in invitations (e.g. "janesmith"). Lowercase, no spaces.</td></tr>
+        <tr><td><strong>Email</strong></td><td>Used to log in. Not shown publicly.</td></tr>
+        <tr><td><strong>Password</strong></td><td>At least 6 characters.</td></tr>
+      </table>
+
+      <div class="callout note">
+        <div class="callout-icon">📝</div>
+        <div class="callout-body"><strong>Already have an account?</strong> Click the <strong>Sign In</strong> tab and enter your email address (or username) together with your password.</div>
+      </div>
+    </div>
+
+    <!-- ══ 2. NAVIGATION OVERVIEW ══ -->
+    <div class="section" id="s2">
+      <div class="section-header">
+        <div class="section-num">2</div>
+        <div class="section-title">Navigation Overview</div>
+      </div>
+
+      <p>Once logged in you'll see a consistent three-part layout on every page.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="mockup-url">http://localhost:3000 — Main App</div>
+        </div>
+        <!-- Header -->
+        <div class="app-header-mock">
+          <div class="logo">🌳 FamilyTree</div>
+          <div class="search-mock">🔍&nbsp; Search family members…</div>
+          <div class="header-right">
+            <div style="position:relative">
+              <span style="font-size:1rem">🔔</span>
+              <span class="badge-mock" style="position:absolute;top:-4px;right:-6px">3</span>
+            </div>
+            <div style="background:rgba(255,255,255,.2);border-radius:20px;padding:.2rem .6rem;font-size:.75rem;display:flex;align-items:center;gap:.4rem"><div style="width:22px;height:22px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700">JS</div>John S.</div>
+            <span style="opacity:.5;font-size:.9rem;cursor:pointer">↩</span>
+          </div>
+        </div>
+        <!-- Layout -->
+        <div class="app-layout-mock">
+          <div class="sidebar-mock">
+            <div class="nav-item active">🏠 Home</div>
+            <div class="nav-item">🌳 Family Trees</div>
+            <div class="nav-item">🔔 Notifications</div>
+            <div class="nav-item">👤 Profile</div>
+            <div class="nav-item">⚙️ Settings</div>
+            <div style="margin-top:.75rem;background:var(--gray-50);border-radius:6px;padding:.6rem;text-align:center">
+              <div style="font-size:.7rem;color:var(--gray-400);margin-bottom:.4rem">Start a new family tree</div>
+              <div style="background:var(--navy);color:#fff;border-radius:5px;padding:.3rem .5rem;font-size:.72rem;text-align:center">+ New Tree</div>
+            </div>
+          </div>
+          <div class="content-mock">
+            <div style="font-weight:700;font-size:.9rem;color:var(--navy);margin-bottom:.4rem">Welcome back, John 👋</div>
+            <div style="font-size:.77rem;color:var(--gray-400)">Here's what's happening in your family trees</div>
+            <div style="margin-top:.75rem;display:flex;gap:.5rem">
+              <div style="background:#fff;border-radius:6px;padding:.5rem .7rem;border:1px solid var(--gray-200);font-size:.73rem">
+                <div style="font-weight:700;color:var(--navy)">The Johnson Family</div>
+                <div style="color:var(--gray-400);margin-top:.1rem">185 members</div>
+              </div>
+              <div style="background:#fff;border-radius:6px;padding:.5rem .7rem;border:1px solid var(--gray-200);font-size:.73rem">
+                <div style="font-weight:700;color:var(--navy)">Smith Ancestors</div>
+                <div style="color:var(--gray-400);margin-top:.1rem">42 members</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>Header Bar</h3>
+      <table class="kv-table">
+        <tr><th>Element</th><th>Action</th></tr>
+        <tr><td>🌳 <strong>FamilyTree</strong> logo</td><td>Click to return to the Dashboard (Home).</td></tr>
+        <tr><td>🔍 <strong>Search box</strong></td><td>Type a name to search across all members in all your trees. Results highlight the matching node in the tree view.</td></tr>
+        <tr><td>🔔 <strong>Bell icon</strong></td><td>Opens a dropdown of your latest notifications. A red badge shows the unread count.</td></tr>
+        <tr><td><strong>Avatar / name</strong></td><td>Click to go to your Profile page.</td></tr>
+        <tr><td>↩ <strong>Sign-out</strong></td><td>Logs you out and returns to the sign-in screen.</td></tr>
+      </table>
+
+      <h3>Sidebar Navigation</h3>
+      <table class="kv-table">
+        <tr><th>Item</th><th>Destination</th></tr>
+        <tr><td>🏠 <strong>Home</strong></td><td>Dashboard with activity feed and tree quick-links.</td></tr>
+        <tr><td>🌳 <strong>Family Trees</strong></td><td>Your trees grid and trees you collaborate on.</td></tr>
+        <tr><td>🔔 <strong>Notifications</strong></td><td>Full notifications list.</td></tr>
+        <tr><td>👤 <strong>Profile</strong></td><td>Your profile page with stats and your owned trees.</td></tr>
+        <tr><td>⚙️ <strong>Settings</strong></td><td>Edit your display name, bio, avatar, and password.</td></tr>
+        <tr><td><strong>+ New Tree</strong> button</td><td>Opens the Create Family Tree dialog from anywhere.</td></tr>
+      </table>
+    </div>
+
+    <!-- ══ 3. DASHBOARD ══ -->
+    <div class="section" id="s3">
+      <div class="section-header">
+        <div class="section-num">3</div>
+        <div class="section-title">Dashboard (Home)</div>
+      </div>
+
+      <p>The Dashboard is the first thing you see after logging in. It shows a quick overview of your trees and a combined activity feed from everyone across all your trees.</p>
+
+      <h3>Tree Quick-Access Bar</h3>
+      <p>Horizontally scrollable cards at the top show each tree you own or collaborate on. Click a card to jump straight into that tree.</p>
+
+      <h3>Compose a Post</h3>
+      <p>Share a message with your family directly from the Dashboard:</p>
+      <ol class="steps">
+        <li>Click inside the text area that says <em>"Share a memory or update…"</em></li>
+        <li>Type your message.</li>
+        <li>Use the <strong>Select tree…</strong> dropdown to choose which tree the post belongs to.</li>
+        <li>Choose a post type: <strong>Update</strong>, <strong>Memory</strong>, or <strong>Milestone</strong>.</li>
+        <li>Click <strong>Post</strong>.</li>
+      </ol>
+
+      <h3>Activity Feed</h3>
+      <p>Posts from all collaborators across all your trees appear here in reverse chronological order. Each post card shows:</p>
+      <ul>
+        <li>Author avatar and name</li>
+        <li>Tree name (gold text) and post type badge</li>
+        <li>Post content</li>
+        <li>❤️ Heart reaction button — click to like/unlike; the count updates immediately</li>
+        <li>💬 Comment button — click to expand the comment thread</li>
+        <li>✕ Delete button — only visible on your own posts</li>
+      </ul>
+
+      <div class="callout tip">
+        <div class="callout-icon">💡</div>
+        <div class="callout-body"><strong>Load more</strong> — if there are more posts than shown, a "Load More" button appears at the bottom of the feed.</div>
+      </div>
+    </div>
+
+    <!-- ══ 4. FAMILY TREES ══ -->
+    <div class="section" id="s4">
+      <div class="section-header">
+        <div class="section-num">4</div>
+        <div class="section-title">Family Trees</div>
+      </div>
+
+      <p>Navigate to <strong>🌳 Family Trees</strong> in the sidebar to see all your trees and ones you've been invited to collaborate on.</p>
+
+      <h3>Tree Cards</h3>
+      <p>Each tree is displayed as a card showing:</p>
+      <ul>
+        <li>Cover photo (or a default 🌳 icon)</li>
+        <li>Tree name</li>
+        <li>Member count and collaborator count</li>
+        <li>Description snippet (first 80 characters)</li>
+        <li>Privacy badge: <span class="priv-badge priv-family">family</span> <span class="priv-badge priv-private">private</span> <span class="priv-badge priv-public">public</span></li>
+        <li>Your role badge: <span class="role-badge role-owner">owner</span> <span class="role-badge role-editor">editor</span> <span class="role-badge role-viewer">viewer</span></li>
+      </ul>
+      <p>Click any card to open that tree.</p>
+
+      <h3>Creating a New Tree</h3>
+      <ol class="steps">
+        <li>Click <strong>+ New Tree</strong> (top-right of the Trees page, or in the sidebar).</li>
+        <li>Enter a <strong>Tree Name</strong> (required).</li>
+        <li>Add an optional <strong>Description</strong>.</li>
+        <li>Set the <strong>Privacy</strong> level.</li>
+        <li>Click <strong>Create Tree</strong>. You're taken straight into the new tree.</li>
+      </ol>
+
+      <table class="kv-table">
+        <tr><th>Privacy Level</th><th>Who can see it</th></tr>
+        <tr><td><span class="priv-badge priv-family">family</span> Family</td><td>Only people you explicitly invite.</td></tr>
+        <tr><td><span class="priv-badge priv-private">private</span> Private</td><td>Only you (the owner).</td></tr>
+        <tr><td><span class="priv-badge priv-public">public</span> Public</td><td>Anyone with the link (read-only for non-members).</td></tr>
+      </table>
+    </div>
+
+    <!-- ══ 5. TREE VIEW ══ -->
+    <div class="section" id="s5">
+      <div class="section-header">
+        <div class="section-num">5</div>
+        <div class="section-title">Tree View</div>
+      </div>
+
+      <p>Clicking any tree opens the full Tree View — a full-screen workspace with four tabs.</p>
+
+      <div class="mockup" style="margin-bottom:1.5rem">
+        <div class="mockup-bar">
+          <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="mockup-url">Tree View — The Johnson Family</div>
+        </div>
+        <div style="padding:.75rem 1rem;background:#fff;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+          <div style="font-weight:800;font-size:.95rem;color:var(--navy)">← The Johnson Family</div>
+          <span class="priv-badge priv-family">family</span>
+          <div style="font-size:.75rem;color:var(--gray-400)">185 members · managed by John Smith</div>
+          <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap">
+            <div style="background:var(--navy);color:#fff;border-radius:6px;padding:.3rem .65rem;font-size:.73rem">+ Add Member</div>
+            <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.3rem .65rem;font-size:.73rem;color:var(--gray-600)">Invite</div>
+            <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.3rem .65rem;font-size:.73rem;color:var(--gray-600)">⚙️ Settings</div>
+            <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.3rem .65rem;font-size:.73rem;color:var(--gray-600)">↓ JSON</div>
+            <div style="border:1px solid var(--gray-200);border-radius:6px;padding:.3rem .65rem;font-size:.73rem;color:var(--gray-600)">↓ HTML</div>
+          </div>
+        </div>
+        <div class="tab-row" style="padding:0 1rem;background:#fff">
+          <div class="tab-item active">🌳 Tree View</div>
+          <div class="tab-item">👥 Members</div>
+          <div class="tab-item">📰 Feed</div>
+          <div class="tab-item">🤝 People</div>
+        </div>
+        <div style="padding:1rem;background:var(--gray-50)">
+          <div class="tree-canvas-mock">
+            <div class="tree-toolbar-mock">
+              <div class="tb-btn-mock active">All</div>
+              <div class="tb-btn-mock">Paternal</div>
+              <div class="tb-btn-mock">Maternal</div>
+              <div class="tb-sep-mock"></div>
+              <div class="tb-btn-mock">View from ▾</div>
+              <div class="tb-sep-mock"></div>
+              <div class="tb-btn-mock">🔍 Search…</div>
+              <div class="tb-sep-mock"></div>
+              <div class="tb-btn-mock">⊖ Fit</div>
+              <div class="tb-btn-mock">+ Zoom In</div>
+              <div class="tb-btn-mock">− Zoom Out</div>
+              <div class="tb-btn-mock">⛶ Fullscreen</div>
+            </div>
+            <!-- Tree SVG mockup -->
+            <div style="padding:1.5rem;background:#fff;min-height:180px">
+              <!-- Gen 0 band -->
+              <div class="gen-band-0" style="border-radius:8px;padding:1rem;margin-bottom:.75rem;display:flex;justify-content:center">
+                <div style="display:flex;align-items:center">
+                  <div class="node-box">
+                    <div class="node-name">George S.</div>
+                    <div class="node-years">1942 – 2019</div>
+                  </div>
+                  <div class="partner-dash" style="min-width:20px"></div>
+                  <div class="partner-heart">♥</div>
+                  <div class="partner-dash" style="min-width:20px"></div>
+                  <div class="node-box female">
+                    <div class="node-name">Mary S.</div>
+                    <div class="node-years">b. 1945</div>
+                  </div>
+                </div>
+              </div>
+              <!-- Connector line -->
+              <div style="display:flex;justify-content:center;margin-bottom:.5rem">
+                <div style="width:2px;height:24px;background:var(--blue);opacity:.5"></div>
+              </div>
+              <!-- Gen 1 band -->
+              <div class="gen-band-1" style="border-radius:8px;padding:1rem;display:flex;justify-content:center;gap:2rem">
+                <div class="node-box highlight">
+                  <div class="node-name">John S.</div>
+                  <div class="node-years">b. 1968</div>
+                </div>
+                <div class="node-box female">
+                  <div class="node-name">Susan S.</div>
+                  <div class="node-years">b. 1971</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5a. Visualization -->
+      <h3 id="s5-viz">🌳 Tree View Tab — Visualization</h3>
+      <p>The interactive SVG canvas fills the full browser width. The tree is arranged top-to-bottom: oldest ancestors at the top, youngest generations at the bottom.</p>
+
+      <h4>Generation Bands &amp; Colors</h4>
+      <p>Each generation row has a subtle tinted background to make depth immediately readable. Edge (line) colors also cycle through a seven-color palette by generation:</p>
+      <div class="gen-colors">
+        <div class="gen-swatch" style="background:#7c3aed">0</div>
+        <div class="gen-swatch" style="background:#2563eb">1</div>
+        <div class="gen-swatch" style="background:#0891b2">2</div>
+        <div class="gen-swatch" style="background:#059669">3</div>
+        <div class="gen-swatch" style="background:#d97706">4</div>
+        <div class="gen-swatch" style="background:#dc2626">5</div>
+        <div class="gen-swatch" style="background:#db2777">6</div>
+      </div>
+      <p style="font-size:.82rem;color:var(--gray-400);margin-top:.25rem">Generation 0 (oldest) → violet, Gen 1 → blue, Gen 2 → teal … cycling every 7 generations.</p>
+
+      <h4>Lineage Lines (S-Curves)</h4>
+      <p>All parent → child connections are drawn as smooth S-shaped cubic bezier curves — no sharp corners or horizontal spines. When both parents are known, lines from each parent converge to a midpoint junction before flowing down to the child.</p>
+
+      <h4>Panning &amp; Zooming</h4>
+      <table class="kv-table">
+        <tr><th>Action</th><th>How</th></tr>
+        <tr><td>Pan (move the canvas)</td><td>Click and drag anywhere on the background.</td></tr>
+        <tr><td>Zoom in / out</td><td>Mouse scroll wheel, or the <strong>+ / −</strong> toolbar buttons.</td></tr>
+        <tr><td>Fit entire tree</td><td>Click <strong>⊖ Fit</strong> in the toolbar.</td></tr>
+        <tr><td>Fullscreen</td><td>Click <strong>⛶ Fullscreen</strong>; press <kbd>Esc</kbd> or click <strong>✕</strong> to exit.</td></tr>
+      </table>
+
+      <h4>Clicking a Node</h4>
+      <p>Click any person's card in the tree to open their <strong>Member Detail</strong> panel, which shows their photo, lifespan, gender, birthplace, biography, and all family relationships (father, mother, spouse, children). Clicking a relative's name in that panel jumps to their detail.</p>
+
+      <h4>Collapse / Expand Subtrees</h4>
+      <p>Each node has a small <strong>⊖</strong> button on its bottom edge. Clicking it collapses all descendants of that person, hiding them from view. The collapsed node shows a <strong>▶N</strong> badge indicating how many hidden members are below. Click <strong>▶</strong> to expand them again.</p>
+
+      <h4>Lineage Filter</h4>
+      <p>Use the three toggle buttons in the toolbar to switch between:</p>
+      <ul>
+        <li><strong>All</strong> — show the complete tree.</li>
+        <li><strong>Paternal</strong> — show only the paternal (father's side) lineage from the focal person.</li>
+        <li><strong>Maternal</strong> — show only the maternal (mother's side) lineage.</li>
+      </ul>
+      <p>Use the <strong>View from ▾</strong> dropdown to pick any member as the focal person for the lineage filter.</p>
+
+      <h4>Search</h4>
+      <ol class="steps">
+        <li>Click the <strong>🔍 Search…</strong> box in the toolbar (or use the global search bar in the header).</li>
+        <li>Type a name. Results appear as you type.</li>
+        <li>Click a result — the tree zooms in and centers on that person, showing them together with one generation above (their parents) and one generation below (their children).</li>
+      </ol>
+
+      <!-- 5b. Members -->
+      <h3 id="s5-members">👥 Members Tab</h3>
+      <p>A scrollable alphabetical list of all members in the tree. Each row shows:</p>
+      <ul>
+        <li>Profile photo or initials avatar (color-coded by gender: blue = male, pink = female, purple = other)</li>
+        <li>Full name</li>
+        <li>Birth year, death year, and birthplace</li>
+        <li>Gender color dot on the right</li>
+      </ul>
+      <p>Click any row to open that person's <strong>Member Detail</strong> panel.</p>
+      <div class="callout tip">
+        <div class="callout-icon">💡</div>
+        <div class="callout-body">The Members tab scrolls independently — even with 185+ members you can reach everyone without the page scrolling.</div>
+      </div>
+
+      <!-- 5c. Feed -->
+      <h3 id="s5-feed">📰 Feed Tab</h3>
+      <p>Shows posts belonging to this specific tree. You can compose a new post here using the compose area at the top, and read, react to, and comment on posts below it — all scoped to this tree only.</p>
+
+      <!-- 5d. People -->
+      <h3 id="s5-people">🤝 People Tab</h3>
+      <p>Lists the tree owner and all collaborators with their roles. If you are the owner you can remove any collaborator from this tab.</p>
+      <p>A <strong>+ Invite People</strong> button at the bottom opens the invitation dialog (see <a href="#s8">Section 8 — Collaboration</a>).</p>
+
+      <!-- Toolbar buttons -->
+      <h3>Toolbar Action Buttons</h3>
+      <table class="kv-table">
+        <tr><th>Button</th><th>Who sees it</th><th>Action</th></tr>
+        <tr><td><strong>+ Add Member</strong></td><td>Editor &amp; Owner</td><td>Opens the bulk-add member form.</td></tr>
+        <tr><td><strong>Invite</strong></td><td>All roles</td><td>Opens the invite dialog to send a join link.</td></tr>
+        <tr><td><strong>⚙️ Settings</strong></td><td>Owner only</td><td>Edit tree name, description, privacy, cover photo; or delete the tree.</td></tr>
+        <tr><td><strong>↑ Import JSON</strong></td><td>Editor &amp; Owner</td><td>Import members from a previously exported JSON file.</td></tr>
+        <tr><td><strong>↓ JSON</strong></td><td>All roles</td><td>Download the entire tree as a JSON file.</td></tr>
+        <tr><td><strong>↓ HTML</strong></td><td>All roles</td><td>Download an interactive standalone HTML tree viewer.</td></tr>
+      </table>
+    </div>
+
+    <!-- ══ 6. MANAGING MEMBERS ══ -->
+    <div class="section" id="s6">
+      <div class="section-header">
+        <div class="section-num">6</div>
+        <div class="section-title">Managing Members</div>
+      </div>
+
+      <!-- 6a. Adding -->
+      <h3 id="s6-add">Adding Members</h3>
+      <p>Click <strong>+ Add Member</strong> to open the bulk-add form. You can add up to <strong>6 members at once</strong> in a single operation.</p>
+
+      <ol class="steps">
+        <li>Fill in the first member's details (only <strong>Full Name</strong> is required).</li>
+        <li>Click <strong>+ Add another member</strong> to append a second form entry (up to 6 total).</li>
+        <li>Click the <strong>✕ Remove</strong> button next to any entry to discard it.</li>
+        <li>Click <strong>Save Member(s)</strong> — all members are created and the tree updates.</li>
+      </ol>
+
+      <h4>Available Fields (Add Form)</h4>
+      <table class="kv-table">
+        <tr><th>Field</th><th>Notes</th></tr>
+        <tr><td><strong>Full Name</strong> ★</td><td>Required for the first entry.</td></tr>
+        <tr><td><strong>Gender</strong></td><td>Male / Female / Other. Affects node border color in the tree.</td></tr>
+        <tr><td><strong>Birth Year</strong></td><td>4-digit year, e.g. 1985.</td></tr>
+        <tr><td><strong>Death Year</strong></td><td>Leave blank if the person is still alive.</td></tr>
+        <tr><td><strong>Birth Place</strong></td><td>Free text, e.g. "Dublin, Ireland".</td></tr>
+        <tr><td><strong>Father (Paternal Parent)</strong></td><td>Pick from existing members.</td></tr>
+        <tr><td><strong>Mother (Maternal Parent)</strong></td><td>Pick from existing members.</td></tr>
+        <tr><td><strong>Spouse / Partner (Primary)</strong></td><td>Pick from existing members. Sets the main partnership link.</td></tr>
+        <tr><td><strong>Biography</strong></td><td>Optional free-text biography.</td></tr>
+      </table>
+
+      <div class="callout note">
+        <div class="callout-icon">📝</div>
+        <div class="callout-body">The Father/Mother/Spouse dropdowns only appear once there is at least one existing member in the tree to choose from.</div>
+      </div>
+
+      <!-- 6b. Editing -->
+      <h3 id="s6-edit">Editing a Member</h3>
+      <p>Open a member's detail panel (click them in the tree or Members tab), then click <strong>Edit</strong>. The edit form has all the same fields as the add form, plus two additional partner fields.</p>
+
+      <h4>Additional Fields in Edit Form</h4>
+      <table class="kv-table">
+        <tr><th>Field</th><th>Notes</th></tr>
+        <tr><td><strong>Spouse / Partner (Primary)</strong></td><td>The first or main partner — shown as the primary connection in the tree.</td></tr>
+        <tr><td><strong>Additional Partners</strong></td><td>Multi-select list for 2nd, 3rd, or more partners (see below).</td></tr>
+      </table>
+
+      <!-- 6c. Multi-spouse -->
+      <h3 id="s6-multi">Multiple Partners / Spouses</h3>
+      <p>FamilyTree Social supports any number of partners per person. Partners are displayed <strong>side by side</strong> in the tree, connected by a dashed pink line with a ♥ heart at the midpoint.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="mockup-url">Multi-partner layout example</div>
+        </div>
+        <div style="padding:1.5rem;background:#fff;display:flex;justify-content:center">
+          <div style="display:flex;align-items:center;gap:.25rem">
+            <div class="node-box female">
+              <div class="node-name">Alice M.</div>
+              <div class="node-years">b. 1970</div>
+            </div>
+            <div class="partner-dash" style="min-width:18px"></div>
+            <div class="partner-heart">♥</div>
+            <div class="partner-dash" style="min-width:18px"></div>
+            <div class="node-box">
+              <div class="node-name">Robert J.</div>
+              <div class="node-years">b. 1968</div>
+            </div>
+            <div class="partner-dash" style="min-width:18px"></div>
+            <div class="partner-heart">♥</div>
+            <div class="partner-dash" style="min-width:18px"></div>
+            <div class="node-box female">
+              <div class="node-name">Carol W.</div>
+              <div class="node-years">b. 1972</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;padding:.5rem 0;background:#fff">
+          <div style="width:2px;height:20px;background:var(--teal);opacity:.5"></div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:3rem;padding:0 1.5rem 1.5rem;background:#fff">
+          <div style="text-align:center">
+            <div style="width:2px;height:16px;background:var(--blue);opacity:.4;margin:0 auto .25rem"></div>
+            <div class="node-box" style="min-width:80px">
+              <div class="node-name">Tom J.</div>
+              <div class="node-years">b. 1995</div>
+            </div>
+          </div>
+          <div style="text-align:center">
+            <div style="width:2px;height:16px;background:var(--blue);opacity:.4;margin:0 auto .25rem"></div>
+            <div class="node-box female" style="min-width:80px">
+              <div class="node-name">Lisa J.</div>
+              <div class="node-years">b. 2001</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h4>How to Set Up Multiple Partners</h4>
+      <ol class="steps">
+        <li>Open a member's edit form.</li>
+        <li>Set the <strong>Spouse / Partner (Primary)</strong> dropdown to the first (or main) partner.</li>
+        <li>In the <strong>Additional Partners</strong> multi-select, hold <kbd>Ctrl</kbd> (Windows/Linux) or <kbd>⌘ Cmd</kbd> (Mac) and click each additional partner to select them.</li>
+        <li>Click <strong>Save Member</strong>.</li>
+      </ol>
+
+      <div class="callout note">
+        <div class="callout-icon">📝</div>
+        <div class="callout-body"><strong>Children are automatically linked</strong> to the correct couple. If a child has both a paternal and maternal parent set, the system infers the partnership and draws the connection — even if you haven't explicitly set the spouse/partner fields.</div>
+      </div>
+
+      <!-- 6d. Photos -->
+      <h3 id="s6-photo">Member Photos</h3>
+      <p>You can upload a profile photo for any member:</p>
+      <ol class="steps">
+        <li>Open the member's detail panel.</li>
+        <li>Click <strong>📷 Photo</strong>.</li>
+        <li>Choose a JPG or PNG image (up to 5 MB).</li>
+        <li>The photo appears in their node in the tree and on their detail panel immediately.</li>
+      </ol>
+
+      <h3>Deleting a Member</h3>
+      <p>Open the member's detail panel and click <strong>Delete</strong>. You will be asked to confirm. Deleting a member removes them from the tree and clears any parent/spouse links that referenced them. This action cannot be undone.</p>
+    </div>
+
+    <!-- ══ 7. SOCIAL FEATURES ══ -->
+    <div class="section" id="s7">
+      <div class="section-header">
+        <div class="section-num">7</div>
+        <div class="section-title">Social Features</div>
+      </div>
+
+      <h3>Post Types</h3>
+      <table class="kv-table">
+        <tr><th>Type</th><th>Suggested use</th></tr>
+        <tr><td>📢 <strong>Update</strong></td><td>General news or information about the family tree.</td></tr>
+        <tr><td>🧠 <strong>Memory</strong></td><td>A personal memory or story about a family member.</td></tr>
+        <tr><td>🏆 <strong>Milestone</strong></td><td>Significant life events — births, graduations, anniversaries.</td></tr>
+      </table>
+
+      <h3>Reacting to Posts</h3>
+      <p>Click the <strong>❤️</strong> button on any post to add a heart reaction. Click it again to remove it. The count updates instantly for you; other collaborators see the updated count on their next page load.</p>
+
+      <h3>Comments</h3>
+      <ol class="steps">
+        <li>Click <strong>💬</strong> on a post to expand the comment thread.</li>
+        <li>Type in the input field at the bottom of the thread.</li>
+        <li>Press <kbd>Enter</kbd> to submit the comment.</li>
+      </ol>
+      <p>Comments appear immediately for you and are visible to all collaborators on the tree.</p>
+
+      <h3>Deleting Posts</h3>
+      <p>You can only delete your own posts. Click the <strong>✕</strong> button on the top-right of a post card and confirm.</p>
+    </div>
+
+    <!-- ══ 8. COLLABORATION ══ -->
+    <div class="section" id="s8">
+      <div class="section-header">
+        <div class="section-num">8</div>
+        <div class="section-title">Collaboration</div>
+      </div>
+
+      <h3>Roles</h3>
+      <table class="kv-table">
+        <tr><th>Role</th><th>Can view</th><th>Can add/edit members</th><th>Can invite</th><th>Can delete tree</th></tr>
+        <tr><td><span class="role-badge role-owner">owner</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td><span class="role-badge role-editor">editor</span></td><td>✅</td><td>✅</td><td>✅</td><td>❌</td></tr>
+        <tr><td><span class="role-badge role-viewer">viewer</span></td><td>✅</td><td>❌</td><td>✅</td><td>❌</td></tr>
+      </table>
+
+      <h3>Inviting Someone</h3>
+      <ol class="steps">
+        <li>Click <strong>Invite</strong> on the tree header toolbar (or <strong>+ Invite People</strong> in the People tab).</li>
+        <li>Enter the person's <strong>username</strong> or <strong>email address</strong>.</li>
+        <li>Choose their <strong>role</strong> (Editor or Viewer).</li>
+        <li>Add an optional personal message.</li>
+        <li>Click <strong>Send Invite</strong>. A shareable link is also displayed — copy it to send manually.</li>
+      </ol>
+
+      <h3>Accepting an Invitation</h3>
+      <p>When you receive an invitation link (e.g. <code>http://localhost:3000/invite/&lt;token&gt;</code>), open it in your browser. You'll see:</p>
+      <ul>
+        <li>Who invited you and which tree</li>
+        <li>What role you're being given</li>
+        <li>Any personal message from the inviter</li>
+      </ul>
+      <p>Click <strong>Join Family Tree</strong> to accept, or <strong>Decline</strong> to reject. If you're not logged in you'll be prompted to sign in or create an account first — the invitation will be saved and applied automatically after you log in.</p>
+
+      <h3>Removing a Collaborator</h3>
+      <p>Tree owners can remove collaborators from the <strong>🤝 People</strong> tab by clicking the <strong>Remove</strong> button next to their name. They immediately lose access to the tree.</p>
+    </div>
+
+    <!-- ══ 9. IMPORT & EXPORT ══ -->
+    <div class="section" id="s9">
+      <div class="section-header">
+        <div class="section-num">9</div>
+        <div class="section-title">Import &amp; Export</div>
+      </div>
+
+      <h3>Export as JSON</h3>
+      <p>Click <strong>↓ JSON</strong> on the tree toolbar. A <code>.json</code> file is downloaded containing all member data including names, dates, relationships, and partner links. This file can be re-imported into any tree.</p>
+
+      <h4>JSON File Structure</h4>
+      <div style="background:var(--gray-800);border-radius:8px;padding:1rem;font-family:monospace;font-size:.78rem;color:#e2e8f0;overflow-x:auto;margin:.75rem 0">
+<pre style="margin:0">{
+  "version": "1.0",
+  "exported_at": "2026-05-19T10:00:00.000Z",
+  "tree": {
+    "name": "The Johnson Family",
+    "description": "...",
+    "privacy": "family"
+  },
+  "members": [
+    {
+      "id": "uuid",
+      "name": "John Smith",
+      "gender": "male",
+      "birth_year": "1968",
+      "death_year": null,
+      "birth_place": "Dublin, Ireland",
+      "bio": "...",
+      "paternal_parent_id": "uuid-of-father",
+      "maternal_parent_id": "uuid-of-mother",
+      "spouse_id": "uuid-of-spouse",
+      "partner_ids": "[\"uuid1\",\"uuid2\"]"
+    }
+  ]
+}</pre>
+      </div>
+
+      <h3>Import from JSON</h3>
+      <ol class="steps">
+        <li>Click <strong>↑ Import JSON</strong> on the tree toolbar (requires editor/owner role).</li>
+        <li>Choose a <code>.json</code> file previously exported from this app.</li>
+        <li>A preview lists the first 15 member names. Confirm the count is correct.</li>
+        <li>Click <strong>Import N Member(s)</strong>. All relationships are remapped to new IDs automatically.</li>
+      </ol>
+
+      <div class="callout note">
+        <div class="callout-icon">📝</div>
+        <div class="callout-body"><strong>Import is additive</strong> — existing members in the target tree are not affected. Imported members are added alongside them.</div>
+      </div>
+
+      <h3>Export as Interactive HTML</h3>
+      <p>Click <strong>↓ HTML</strong> to download a fully self-contained HTML file. It includes:</p>
+      <ul>
+        <li>All member data embedded as JavaScript</li>
+        <li>An interactive SVG tree with zoom, pan, and lineage filter</li>
+        <li>A member detail side-panel</li>
+        <li>No internet connection or server required to view it</li>
+      </ul>
+      <p>Share this file with family members who don't have accounts — they can open it in any browser and explore the tree.</p>
+    </div>
+
+    <!-- ══ 10. PROFILE & SETTINGS ══ -->
+    <div class="section" id="s10">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <div class="section-title">Profile &amp; Settings</div>
+      </div>
+
+      <h3>Profile Page</h3>
+      <p>Click <strong>👤 Profile</strong> in the sidebar to see your public profile, which includes:</p>
+      <ul>
+        <li>Your avatar and display name</li>
+        <li>Your username and biography</li>
+        <li>Stats: trees owned, trees you collaborate on, total members across all your trees</li>
+        <li>A grid of your owned trees</li>
+      </ul>
+      <p>Click <strong>Edit Profile</strong> to jump to Settings.</p>
+
+      <h3>Settings Page</h3>
+      <p>Click <strong>⚙️ Settings</strong> in the sidebar. Two sections are available:</p>
+
+      <h4>Profile Section</h4>
+      <table class="kv-table">
+        <tr><th>Field</th><th>Notes</th></tr>
+        <tr><td><strong>Change Photo</strong></td><td>Upload a new avatar image (JPG/PNG, up to 5 MB). Appears in the header and on posts.</td></tr>
+        <tr><td><strong>Display Name</strong></td><td>The name shown to other collaborators. Can be changed at any time.</td></tr>
+        <tr><td><strong>Bio</strong></td><td>A short text description shown on your profile page.</td></tr>
+        <tr><td><strong>Username</strong></td><td>Read-only. Cannot be changed after account creation.</td></tr>
+        <tr><td><strong>Email</strong></td><td>Read-only. Contact the server administrator to change.</td></tr>
+      </table>
+
+      <h4>Change Password Section</h4>
+      <ol class="steps">
+        <li>Enter your <strong>Current Password</strong>.</li>
+        <li>Enter the <strong>New Password</strong> (at least 6 characters).</li>
+        <li>Click <strong>Update Password</strong>.</li>
+      </ol>
+
+      <h3>Tree Settings</h3>
+      <p>Each tree has its own settings dialog, accessible via <strong>⚙️ Settings</strong> on the tree header (owner only):</p>
+      <ul>
+        <li>Rename the tree</li>
+        <li>Edit the description</li>
+        <li>Change the privacy level</li>
+        <li>Upload a cover photo (JPG/PNG, up to 5 MB)</li>
+        <li><span style="color:var(--red)"><strong>Delete Tree</strong></span> — permanently deletes the tree and all its members, posts, and comments</li>
+      </ul>
+      <div class="callout warn">
+        <div class="callout-icon">⚠️</div>
+        <div class="callout-body"><strong>Tree deletion is permanent.</strong> Export a JSON backup before deleting a tree you might want to restore later.</div>
+      </div>
+    </div>
+
+    <!-- ══ 11. NOTIFICATIONS ══ -->
+    <div class="section" id="s11">
+      <div class="section-header">
+        <div class="section-num">11</div>
+        <div class="section-title">Notifications</div>
+      </div>
+
+      <p>FamilyTree Social sends in-app notifications for key events. The 🔔 bell in the header shows a red badge when there are unread notifications.</p>
+
+      <h3>Notification Types</h3>
+      <table class="kv-table">
+        <tr><th>Event</th><th>Who gets notified</th></tr>
+        <tr><td>New member added to a tree</td><td>All collaborators and the owner (except the person who added them).</td></tr>
+        <tr><td>Invitation accepted</td><td>Tree owner and collaborators.</td></tr>
+      </table>
+
+      <h3>Viewing Notifications</h3>
+      <p>There are two ways to view notifications:</p>
+      <ul>
+        <li><strong>Dropdown</strong> — click the 🔔 bell to see the latest notifications without leaving the current page. Click <strong>Mark all read</strong> to clear the badge.</li>
+        <li><strong>Full page</strong> — click <strong>🔔 Notifications</strong> in the sidebar for the complete list. All notifications are automatically marked as read when you open this page.</li>
+      </ul>
+      <p>Notifications are polled every <strong>30 seconds</strong> automatically — the badge updates without needing to refresh the page.</p>
+    </div>
+
+    <!-- ══ 12. TROUBLESHOOTING ══ -->
+    <div class="section" id="s12">
+      <div class="section-header">
+        <div class="section-num">12</div>
+        <div class="section-title">Troubleshooting</div>
+      </div>
+
+      <table class="kv-table">
+        <tr><th>Problem</th><th>Fix</th></tr>
+        <tr><td>Page is blank / white screen</td><td>Make sure you opened <code>http://localhost:3000</code> in your browser — not the <code>index.html</code> file directly from the file system.</td></tr>
+        <tr><td>Server won't start — "Port already in use"</td><td>Run <code>PORT=3001 ./start.sh</code> (Linux/Mac) or edit <code>start.bat</code> and change <code>3000</code> to another port.</td></tr>
+        <tr><td>Windows: "Installation complete — please restart"</td><td>Node.js was just installed for the first time. Restart your computer once, then double-click <code>start.bat</code> again.</td></tr>
+        <tr><td>Linux: "permission denied" on first run</td><td>Run <code>chmod +x start.sh</code> once, then <code>./start.sh</code>.</td></tr>
+        <tr><td>Linux: prompted for sudo password</td><td>Enter your system password — this installs Node.js system-wide once only.</td></tr>
+        <tr><td>Tree looks empty after login</td><td>Create a new tree first via <strong>+ New Tree</strong>, then add members.</td></tr>
+        <tr><td>Members overlap in the tree</td><td>Click <strong>⊖ Fit</strong> in the tree toolbar to re-fit the layout. If the issue persists after adding many members, try zooming out with the <strong>−</strong> button.</td></tr>
+        <tr><td>Search finds no results</td><td>Ensure you're spelling the name as it was entered. Search is case-insensitive but matches the exact spelling stored.</td></tr>
+        <tr><td>Photo upload fails</td><td>Check the file is a JPG or PNG smaller than 5 MB.</td></tr>
+        <tr><td>Invite link says "Invitation Not Found"</td><td>Invitations expire or may have already been used. Ask the tree owner to send a new invitation.</td></tr>
+        <tr><td>Import JSON fails with "does not look like a family tree"</td><td>Only files exported from FamilyTree Social are supported. Make sure you're importing a <code>*-family-tree.json</code> file downloaded from this app.</td></tr>
+      </table>
+
+      <div class="callout tip">
+        <div class="callout-icon">💡</div>
+        <div class="callout-body"><strong>Data is stored locally.</strong> All family data is in a SQLite database at <code>data/familytree.db</code> inside the project folder. Back this file up regularly to protect your data.</div>
+      </div>
+
+      <h3>Quick Feature Reference</h3>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="fi">🌳</div>
+          <div class="ft">Multi-Tree</div>
+          <div class="fd">Create as many family trees as you need, each with its own members and feed.</div>
+        </div>
+        <div class="feature-card">
+          <div class="fi">💑</div>
+          <div class="ft">Multi-Partner</div>
+          <div class="fd">Any person can have 2+ partners — they appear side by side in the tree.</div>
+        </div>
+        <div class="feature-card">
+          <div class="fi">🎨</div>
+          <div class="ft">Color Generations</div>
+          <div class="fd">Edges and bands are color-coded by generation depth for instant readability.</div>
+        </div>
+        <div class="feature-card">
+          <div class="fi">🔍</div>
+          <div class="ft">Smart Search</div>
+          <div class="fd">Search zooms to a member and shows their parents and children in context.</div>
+        </div>
+        <div class="feature-card">
+          <div class="fi">👥</div>
+          <div class="ft">Bulk Add</div>
+          <div class="fd">Add up to 6 family members in a single form submission.</div>
+        </div>
+        <div class="feature-card">
+          <div class="fi">📤</div>
+          <div class="ft">Export / Import</div>
+          <div class="fd">JSON for data portability, standalone HTML to share with anyone.</div>
+        </div>
+        <div class="feature-card">
+          <div class="fi">🤝</div>
+          <div class="ft">Collaboration</div>
+          <div class="fd">Invite family members with editor or viewer roles via a shareable link.</div>
+        </div>
+        <div class="feature-card">
+          <div class="fi">📱</div>
+          <div class="ft">Responsive</div>
+          <div class="fd">Works on desktop, tablet, and mobile browsers.</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<footer class="manual-footer">
+  FamilyTree Social v2.0 · User Manual · Generated May 2026<br>
+  <span style="font-size:.75rem;margin-top:.25rem;display:block">Keep the terminal / command prompt window open while using the app. Closing it stops the server.</span>
+</footer>
+
+</body>
+</html>
