@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    image: family-tree-social
+    container_name: family-tree-social
+    ports:
+      - "3000:3000"
+    volumes:
+      - family-tree-data:/app/data
+      - family-tree-uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-change-this-to-a-long-random-secret}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  family-tree-data:
+    driver: local
+  family-tree-uploads:
+    driver: local
