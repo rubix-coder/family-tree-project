@@ -175,6 +175,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .tree-empty p { font-size: 1rem; }
 /* Keep tree-scroll as alias for backward compat (old code may ref it) */
 .tree-scroll { flex: 1; min-height: 0; overflow: hidden; }
+/* Non-viz tree tabs: scrollable flex column */
+#tree-tab-list, #tree-tab-feed, #tree-tab-collab { flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem; }
 /* Fullscreen */
 .tree-stage:-webkit-full-screen { width: 100vw !important; height: 100vh !important; background: var(--gray-50); }
 .tree-stage:fullscreen { width: 100vw !important; height: 100vh !important; background: var(--gray-50); }

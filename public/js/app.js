@@ -445,9 +445,9 @@ const App = (() => {
             <div class="tree-tab" onclick="App.switchTreeTab('collab', this)">🤝 People</div>
           </div>
           <div id="tree-tab-viz"><div id="tree-canvas"></div></div>
-          <div id="tree-tab-list" style="display:none;padding:1.25rem"><div id="members-list-container"></div></div>
-          <div id="tree-tab-feed" style="display:none;padding:1.25rem"><div id="tree-feed-container"></div></div>
-          <div id="tree-tab-collab" style="display:none;padding:1.25rem"><div id="collab-container"></div></div>
+          <div id="tree-tab-list" style="display:none"><div id="members-list-container"></div></div>
+          <div id="tree-tab-feed" style="display:none"><div id="tree-feed-container"></div></div>
+          <div id="tree-tab-collab" style="display:none"><div id="collab-container"></div></div>
         </div>`;
 
       TreeViz.init(treeId, members, tree.my_role, (memberId) => showMemberDetail(memberId));
@@ -461,7 +461,7 @@ const App = (() => {
     el.classList.add('active');
     ['viz', 'list', 'feed', 'collab'].forEach(t => {
       const tabEl = document.getElementById(`tree-tab-${t}`);
-      if (tabEl) tabEl.style.display = t === tab ? (t === 'viz' ? 'flex' : 'block') : 'none';
+      if (tabEl) tabEl.style.display = t === tab ? 'flex' : 'none';
     });
     if (tab === 'viz') requestAnimationFrame(() => TreeViz.fitView());
     if (tab === 'list') await renderMembersList();

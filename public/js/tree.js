@@ -172,13 +172,17 @@ const TreeViz = (() => {
         : leftCol;
 
       if (sid) {
-        nodePositions[id]  = { cx: center - 0.5, cy: depth };
-        nodePositions[sid] = { cx: center + 0.5, cy: depth };
+        // Clamp so the left spouse never overlaps the previous sibling subtree.
+        const leftBound = Math.max(center - 0.5, leftCol);
+        const actualCenter = leftBound + 0.5;
+        nodePositions[id]  = { cx: actualCenter - 0.5, cy: depth };
+        nodePositions[sid] = { cx: actualCenter + 0.5, cy: depth };
+        return Math.max(childrenRight, actualCenter + 1);
       } else {
-        nodePositions[id] = { cx: center, cy: depth };
+        const actualCx = Math.max(center, leftCol);
+        nodePositions[id] = { cx: actualCx, cy: depth };
+        return Math.max(childrenRight, actualCx + 1);
       }
-      // Parent block may stick out past the children span on a thin subtree.
-      return Math.max(childrenRight, center + coupleW / 2 + 0.5);
     }
 
     let nextCol = 0;
@@ -189,10 +193,26 @@ const TreeViz = (() => {
       }
     }
 
-    // Fallback for any member that slipped through (e.g., spouse of non-root)
+    // Fallback for any member that slipped through — infer depth from relatives
     for (const m of vis) {
       if (!nodePositions[m.id]) {
-        nodePositions[m.id] = { cx: nextCol, cy: 0 };
+        const sid = spouseMap[m.id];
+        let cy = 0;
+        if (m.paternal_parent_id && nodePositions[m.paternal_parent_id]) {
+          cy = nodePositions[m.paternal_parent_id].cy + 1;
+        } else if (m.maternal_parent_id && nodePositions[m.maternal_parent_id]) {
+          cy = nodePositions[m.maternal_parent_id].cy + 1;
+        } else if (sid && nodePositions[sid]) {
+          cy = nodePositions[sid].cy;
+        } else {
+          for (const child of vis) {
+            if ((child.paternal_parent_id === m.id || child.maternal_parent_id === m.id) && nodePositions[child.id]) {
+              cy = Math.max(0, nodePositions[child.id].cy - 1);
+              break;
+            }
+          }
+        }
+        nodePositions[m.id] = { cx: nextCol, cy };
         nextCol++;
       }
     }
@@ -543,13 +563,10 @@ const TreeViz = (() => {
     const q = (query || '').trim().toLowerCase();
     if (!q) { highlight = null; _renderContent(); return; }
 
-    // Search across ALL members, not just the currently-visible subset.
     const match = members.find(m => m.name.toLowerCase().includes(q));
     if (!match) { highlight = null; _renderContent(); return; }
     highlight = match.id;
 
-    // If the match isn't currently visible (filtered out or inside a
-    // collapsed branch), reset to the full view so it can be shown.
     const visIds = new Set(_visibleMembers().map(m => m.id));
     if (!visIds.has(match.id)) {
       viewFilter = 'all';
@@ -561,14 +578,38 @@ const TreeViz = (() => {
     }
 
     _renderContent();
-    if (nodePositions[match.id]) {
-      const stage = document.getElementById('tree-stage');
-      if (!stage) return;
-      const { x, y } = _px(nodePositions[match.id].cx, nodePositions[match.id].cy);
-      tfm.x = stage.clientWidth  / 2 - (x + NW / 2) * tfm.s;
-      tfm.y = stage.clientHeight / 2 - (y + NH / 2) * tfm.s;
-      _applyTfm();
+    if (!nodePositions[match.id]) return;
+
+    const stage = document.getElementById('tree-stage');
+    if (!stage) return;
+
+    // Collect nodes to show: match + spouse + 1 gen above + 1 gen below
+    const focusIds = new Set([match.id]);
+    const sid = spouseMap[match.id];
+    if (sid && nodePositions[sid]) focusIds.add(sid);
+    if (match.paternal_parent_id && nodePositions[match.paternal_parent_id]) focusIds.add(match.paternal_parent_id);
+    if (match.maternal_parent_id && nodePositions[match.maternal_parent_id]) focusIds.add(match.maternal_parent_id);
+    for (const m of members) {
+      if ((m.paternal_parent_id === match.id || m.maternal_parent_id === match.id ||
+           (sid && (m.paternal_parent_id === sid || m.maternal_parent_id === sid))) &&
+          nodePositions[m.id]) {
+        focusIds.add(m.id);
+      }
     }
+
+    // Compute pixel bounding box over all focus nodes
+    const pxList = [...focusIds].map(id => _px(nodePositions[id].cx, nodePositions[id].cy));
+    const minX = Math.min(...pxList.map(p => p.x));
+    const maxX = Math.max(...pxList.map(p => p.x)) + NW;
+    const minY = Math.min(...pxList.map(p => p.y));
+    const maxY = Math.max(...pxList.map(p => p.y)) + NH;
+    const pad = 60;
+    const sw = stage.clientWidth, sh = stage.clientHeight;
+    tfm.s = Math.min((sw - pad * 2) / (maxX - minX), (sh - pad * 2) / (maxY - minY), 1.5);
+    tfm.s = Math.max(tfm.s, 0.2);
+    tfm.x = sw / 2 - ((minX + maxX) / 2) * tfm.s;
+    tfm.y = sh / 2 - ((minY + maxY) / 2) * tfm.s;
+    _applyTfm();
   }
 
   function handleClick(id) { if (onMemberClick) onMemberClick(id); }
