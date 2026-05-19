@@ -61,19 +61,37 @@ const TreeViz = (() => {
   }
 
   function _lineageMembers() {
-    const vis = new Set();
     const start = focalId && members.find(x => x.id === focalId)
       ? focalId
-      : (members.length ? members[0].id : null);
-    function walk(id, depth) {
-      if (!id || vis.has(id) || depth > 150) return;
-      const m = members.find(x => x.id === id); if (!m) return;
+      : (members.length ? members[members.length - 1].id : null);
+    if (!start) return [];
+
+    // 1. Walk up the chosen side to the topmost ancestor.
+    let topId = start, cur = start, guard = 0;
+    const upSeen = new Set();
+    while (cur && !upSeen.has(cur) && guard++ < 300) {
+      upSeen.add(cur);
+      const m = members.find(x => x.id === cur); if (!m) break;
+      const pid = viewFilter === 'paternal' ? m.paternal_parent_id : m.maternal_parent_id;
+      if (pid && members.find(x => x.id === pid)) { topId = pid; cur = pid; }
+      else break;
+    }
+
+    // 2. From the top ancestor, include the entire descendant subtree
+    //    plus spouses, so every visible node keeps its connector.
+    const vis = new Set();
+    function descend(id, depth) {
+      if (!id || vis.has(id) || depth > 300) return;
       vis.add(id);
       const sid = spouseMap[id]; if (sid) vis.add(sid);
-      const parentId = viewFilter === 'paternal' ? m.paternal_parent_id : m.maternal_parent_id;
-      walk(parentId, depth + 1);
+      for (const m of members) {
+        if (m.paternal_parent_id === id || m.maternal_parent_id === id ||
+            (sid && (m.paternal_parent_id === sid || m.maternal_parent_id === sid))) {
+          descend(m.id, depth + 1);
+        }
+      }
     }
-    walk(start, 0);
+    descend(topId, 0);
     return members.filter(m => vis.has(m.id));
   }
 
@@ -120,60 +138,62 @@ const TreeViz = (() => {
     if (!roots.length && vis.length) roots.push(vis[0]);
 
     const placed = new Set();
-    let leafCol = 0;
 
-    function placeSubtree(id, depth) {
-      if (placed.has(id)) return;
+    // Recursive width-packing: each subtree occupies a disjoint column
+    // range, so siblings never overlap. Returns the next free column.
+    function placeSubtree(id, depth, leftCol) {
       placed.add(id);
-
       const sid = spouseMap[id] && visIds.has(spouseMap[id]) ? spouseMap[id] : null;
-      if (sid && !placed.has(sid)) placed.add(sid);
+      if (sid) placed.add(sid);
+      const coupleW = sid ? 2 : 1;
 
-      // Unplaced children
       const kids = getKids(id).filter(k => !placed.has(k));
 
-      // Place children DFS first
-      for (const kid of kids) placeSubtree(kid, depth + 1);
-
-      if (kids.length > 0) {
-        // Center parent(s) above children's span
-        const kidCols = kids.map(k => nodePositions[k]?.cx ?? 0);
-        const minC = Math.min(...kidCols), maxC = Math.max(...kidCols);
-        const center = (minC + maxC) / 2;
-
-        if (sid) {
-          nodePositions[id]  = { cx: center - 0.5, cy: depth };
-          nodePositions[sid] = { cx: center + 0.5, cy: depth };
-          leafCol = Math.max(leafCol, center + 1.5);
-        } else {
-          nodePositions[id] = { cx: center, cy: depth };
-          leafCol = Math.max(leafCol, center + 1);
-        }
-      } else {
-        // Leaf — assign sequential columns
-        if (sid) {
-          nodePositions[id]  = { cx: leafCol,     cy: depth };
-          nodePositions[sid] = { cx: leafCol + 1, cy: depth };
-          leafCol += 2;
-        } else {
-          nodePositions[id] = { cx: leafCol, cy: depth };
-          leafCol++;
-        }
+      if (kids.length === 0) {
+        // Leaf: occupy its own column(s) at leftCol.
+        nodePositions[id] = { cx: leftCol, cy: depth };
+        if (sid) nodePositions[sid] = { cx: leftCol + 1, cy: depth };
+        return leftCol + coupleW;
       }
+
+      // Lay children out side by side starting at leftCol.
+      let c = leftCol;
+      const kidCenters = [];
+      for (const kid of kids) {
+        if (placed.has(kid)) continue;
+        const next = placeSubtree(kid, depth + 1, c);
+        if (nodePositions[kid]) kidCenters.push(nodePositions[kid].cx);
+        c = next;
+      }
+
+      const childrenRight = c;
+      const center = kidCenters.length
+        ? (Math.min(...kidCenters) + Math.max(...kidCenters)) / 2
+        : leftCol;
+
+      if (sid) {
+        nodePositions[id]  = { cx: center - 0.5, cy: depth };
+        nodePositions[sid] = { cx: center + 0.5, cy: depth };
+      } else {
+        nodePositions[id] = { cx: center, cy: depth };
+      }
+      // Parent block may stick out past the children span on a thin subtree.
+      return Math.max(childrenRight, center + coupleW / 2 + 0.5);
     }
 
+    let nextCol = 0;
     for (const r of roots) {
       if (!placed.has(r.id)) {
-        placeSubtree(r.id, 0);
-        leafCol = Math.ceil(leafCol) + 1; // gap between separate family trees
+        nextCol = placeSubtree(r.id, 0, nextCol);
+        nextCol = Math.ceil(nextCol) + 1; // gap between separate family trees
       }
     }
 
     // Fallback for any member that slipped through (e.g., spouse of non-root)
     for (const m of vis) {
       if (!nodePositions[m.id]) {
-        nodePositions[m.id] = { cx: leafCol, cy: 0 };
-        leafCol++;
+        nodePositions[m.id] = { cx: nextCol, cy: 0 };
+        nextCol++;
       }
     }
   }
@@ -522,11 +542,26 @@ const TreeViz = (() => {
   function search(query) {
     const q = (query || '').trim().toLowerCase();
     if (!q) { highlight = null; _renderContent(); return; }
-    const vis = _visibleMembers();
-    const match = vis.find(m => m.name.toLowerCase().includes(q));
-    highlight = match ? match.id : null;
+
+    // Search across ALL members, not just the currently-visible subset.
+    const match = members.find(m => m.name.toLowerCase().includes(q));
+    if (!match) { highlight = null; _renderContent(); return; }
+    highlight = match.id;
+
+    // If the match isn't currently visible (filtered out or inside a
+    // collapsed branch), reset to the full view so it can be shown.
+    const visIds = new Set(_visibleMembers().map(m => m.id));
+    if (!visIds.has(match.id)) {
+      viewFilter = 'all';
+      collapsedNodes = new Set();
+      const btns = document.querySelectorAll('.tree-filter-btn');
+      btns.forEach(b => b.classList.remove('active'));
+      if (btns[0]) btns[0].classList.add('active');
+      _buildLayout();
+    }
+
     _renderContent();
-    if (match && nodePositions[match.id]) {
+    if (nodePositions[match.id]) {
       const stage = document.getElementById('tree-stage');
       if (!stage) return;
       const { x, y } = _px(nodePositions[match.id].cx, nodePositions[match.id].cy);

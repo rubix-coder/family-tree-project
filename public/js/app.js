@@ -1294,53 +1294,76 @@ function byId(id){return members.find(function(m){return m.id===id;});}
 function xe(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function getVis(){
   if(vf==='all')return members.slice();
-  var vis=new Set();
-  function walk(id,d){
-    if(!id||vis.has(id)||d>100)return;
-    var m=byId(id);if(!m)return;
-    vis.add(id);var sid=sm[id];if(sid)vis.add(sid);
-    walk(vf==='paternal'?m.paternal_parent_id:m.maternal_parent_id,d+1);
+  var start=byId(fid)?fid:(members.length?members[members.length-1].id:null);
+  if(!start)return [];
+  var topId=start,cur=start,seen=new Set(),g=0;
+  while(cur&&!seen.has(cur)&&g++<300){
+    seen.add(cur);var mm=byId(cur);if(!mm)break;
+    var pid=vf==='paternal'?mm.paternal_parent_id:mm.maternal_parent_id;
+    if(pid&&byId(pid)){topId=pid;cur=pid;}else break;
   }
-  walk(fid,0);
+  var vis=new Set();
+  function descend(id,d){
+    if(!id||vis.has(id)||d>300)return;
+    vis.add(id);var sid=sm[id];if(sid)vis.add(sid);
+    for(var m of members){
+      if(m.paternal_parent_id===id||m.maternal_parent_id===id||
+         (sid&&(m.paternal_parent_id===sid||m.maternal_parent_id===sid)))descend(m.id,d+1);
+    }
+  }
+  descend(topId,0);
   return members.filter(function(m){return vis.has(m.id);});
 }
 function layout(vis){
   var pos={},placed=new Set(),cof={};
+  var visIds=new Set(vis.map(function(m){return m.id;}));
   for(var m of vis)for(var pid of [m.paternal_parent_id,m.maternal_parent_id].filter(Boolean)){
+    if(!visIds.has(pid))continue;
     if(!cof[pid])cof[pid]=[];if(!cof[pid].includes(m.id))cof[pid].push(m.id);
   }
-  function gc(id){return(cof[id]||[]).map(function(cid){return vis.find(function(m){return m.id===cid;});}).filter(Boolean);}
-  var hasP=new Set(vis.filter(function(m){return m.paternal_parent_id||m.maternal_parent_id;}).map(function(m){return m.id;}));
+  function getKids(id){
+    var sid=sm[id]&&visIds.has(sm[id])?sm[id]:null;
+    var s=new Set((cof[id]||[]).concat(sid?(cof[sid]||[]):[]));
+    return Array.from(s);
+  }
+  var hasVP=new Set(vis.filter(function(m){
+    return (m.paternal_parent_id&&visIds.has(m.paternal_parent_id))||
+           (m.maternal_parent_id&&visIds.has(m.maternal_parent_id));
+  }).map(function(m){return m.id;}));
   var roots=vis.filter(function(m){
-    if(hasP.has(m.id))return false;
-    var sid=sm[m.id];if(!sid)return true;
-    if(hasP.has(sid))return false;return m.id<sid;
+    if(hasVP.has(m.id))return false;
+    var sid=sm[m.id],sV=sid&&visIds.has(sid);
+    if(sV&&hasVP.has(sid))return false;
+    if(sV)return m.id<sid;
+    return true;
   });
   if(!roots.length&&vis.length)roots.push(vis[0]);
-  function place(m,depth,col){
-    if(placed.has(m.id))return col;
-    placed.add(m.id);
-    var cids=new Set();
-    gc(m.id).forEach(function(c){cids.add(c.id);});
-    var sid=sm[m.id];if(sid)gc(sid).forEach(function(c){cids.add(c.id);});
-    var kids=Array.from(cids).map(function(id){return vis.find(function(m){return m.id===id;});}).filter(Boolean);
-    var cols=[],c=col;
-    for(var kid of kids){
-      if(placed.has(kid.id))continue;
-      c=place(kid,depth+1,c);
-      cols.push(pos[kid.id]?pos[kid.id].cx:c);c++;
+  function place(id,depth,leftCol){
+    placed.add(id);
+    var sid=sm[id]&&visIds.has(sm[id])?sm[id]:null;
+    if(sid)placed.add(sid);
+    var cw=sid?2:1;
+    var kids=getKids(id).filter(function(k){return !placed.has(k);});
+    if(kids.length===0){
+      pos[id]={cx:leftCol,cy:depth};
+      if(sid)pos[sid]={cx:leftCol+1,cy:depth};
+      return leftCol+cw;
     }
-    var x=cols.length?(Math.min.apply(null,cols)+Math.max.apply(null,cols))/2:col;
-    pos[m.id]={cx:x,cy:depth};
-    if(sid&&!placed.has(sid)){
-      var sp=vis.find(function(m){return m.id===sid;});
-      if(sp){placed.add(sp.id);pos[sp.id]={cx:x+1,cy:depth};c=Math.max(c,x+2);}
+    var c=leftCol,cen=[];
+    for(var k of kids){
+      if(placed.has(k))continue;
+      var nx=place(k,depth+1,c);
+      if(pos[k])cen.push(pos[k].cx);
+      c=nx;
     }
-    return cols.length?c:col+1;
+    var center=cen.length?(Math.min.apply(null,cen)+Math.max.apply(null,cen))/2:leftCol;
+    if(sid){pos[id]={cx:center-0.5,cy:depth};pos[sid]={cx:center+0.5,cy:depth};}
+    else pos[id]={cx:center,cy:depth};
+    return Math.max(c,center+cw/2+0.5);
   }
-  var sc=0;
-  roots.forEach(function(r){if(!placed.has(r.id))sc=place(r,0,sc)+1;});
-  var ex=0;vis.forEach(function(m){if(!pos[m.id]){pos[m.id]={cx:sc+ex,cy:0};ex++;}});
+  var nc=0;
+  roots.forEach(function(r){if(!placed.has(r.id)){nc=place(r.id,0,nc);nc=Math.ceil(nc)+1;}});
+  vis.forEach(function(m){if(!pos[m.id]){pos[m.id]={cx:nc,cy:0};nc++;}});
   return pos;
 }
 function px(cx,cy){return{x:cx*(NW+HG)+40,y:cy*(NH+VG)+40};}
@@ -1387,7 +1410,7 @@ function render(){
     var fs=m.name.length>14?'10':m.name.length>10?'11':'12';
     var dn=m.name.length>16?m.name.slice(0,15)+'…':m.name;
     var isSel=m.id===sel;
-    nodes+='<g class="node" onclick="pickMember(\''+m.id+'\')">'+
+    nodes+='<g class="node" onclick="pickMember(\\''+m.id+'\\')">'+
       '<rect x="'+x+'" y="'+y+'" width="'+NW+'" height="'+NH+'" rx="10" fill="white" stroke="'+gc+'" stroke-width="'+(isSel?3.5:2)+'" filter="url(#sh)" '+(isSel?'stroke-dasharray="none"':'')+' />'+
       '<circle cx="'+(x+26)+'" cy="'+(y+26)+'" r="18" fill="'+gc+'" opacity="0.2"/>'+
       '<text x="'+(x+26)+'" y="'+(y+31)+'" text-anchor="middle" font-size="12" font-weight="700" fill="'+gc+'">'+xe(init)+'</text>'+
@@ -1423,10 +1446,10 @@ window.pickMember=function(id){
   var father=byId(m.paternal_parent_id),mother=byId(m.maternal_parent_id),spouse=byId(m.spouse_id);
   var kids=members.filter(function(x){return x.paternal_parent_id===id||x.maternal_parent_id===id;});
   var rel='';
-  if(father)rel+='<div class="ri"><span class="rl">Father</span><a onclick="pickMember(\''+father.id+'\')">'+xe(father.name)+'</a></div>';
-  if(mother)rel+='<div class="ri"><span class="rl">Mother</span><a onclick="pickMember(\''+mother.id+'\')">'+xe(mother.name)+'</a></div>';
-  if(spouse)rel+='<div class="ri"><span class="rl">Spouse</span><a onclick="pickMember(\''+spouse.id+'\')">'+xe(spouse.name)+'</a></div>';
-  if(kids.length)rel+='<div class="ri"><span class="rl">Children</span><span>'+kids.map(function(c){return'<a onclick="pickMember(\''+c.id+'\')">'+xe(c.name)+'</a>';}).join(', ')+'</span></div>';
+  if(father)rel+='<div class="ri"><span class="rl">Father</span><a onclick="pickMember(\\''+father.id+'\\')">'+xe(father.name)+'</a></div>';
+  if(mother)rel+='<div class="ri"><span class="rl">Mother</span><a onclick="pickMember(\\''+mother.id+'\\')">'+xe(mother.name)+'</a></div>';
+  if(spouse)rel+='<div class="ri"><span class="rl">Spouse</span><a onclick="pickMember(\\''+spouse.id+'\\')">'+xe(spouse.name)+'</a></div>';
+  if(kids.length)rel+='<div class="ri"><span class="rl">Children</span><span>'+kids.map(function(c){return'<a onclick="pickMember(\\''+c.id+'\\')">'+xe(c.name)+'</a>';}).join(', ')+'</span></div>';
   dp.innerHTML=
     '<div class="dh">'+
       '<div class="da" style="background:'+gc+'22;color:'+gc+'">'+xe(init)+'</div>'+
