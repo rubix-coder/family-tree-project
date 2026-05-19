@@ -14,7 +14,10 @@ where npm >nul 2>&1
 if errorlevel 1 goto install_node
 
 :: Check version (need 18+)
-for /f %%a in ('node -e "process.stdout.write(process.versions.node.split(\".\")[0])"') do set NODE_MAJOR=%%a
+for /f "tokens=1 delims=." %%a in ('node --version 2^>nul') do set NODE_VER_RAW=%%a
+if not defined NODE_VER_RAW goto install_node
+set NODE_MAJOR=%NODE_VER_RAW:~1%
+if not defined NODE_MAJOR goto install_node
 if %NODE_MAJOR% LSS 18 goto install_node
 
 goto deps
