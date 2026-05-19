@@ -1,14 +1,30 @@
-const Database = require('better-sqlite3');
+const { Database: _Database } = require('node-sqlite3-wasm');
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'familytree.db');
 
 require('fs').mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-const db = new Database(DB_PATH);
+const rawDb = new _Database(DB_PATH);
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// node-sqlite3-wasm uses exec() for pragmas instead of .pragma()
+rawDb.exec("PRAGMA journal_mode = WAL");
+rawDb.exec("PRAGMA foreign_keys = ON");
+
+// node-sqlite3-wasm requires stmt.free() after each use to avoid memory leaks.
+// Wrap prepare() so statements free themselves automatically, keeping all
+// call-sites identical to the better-sqlite3 API.
+const _prep = rawDb.prepare.bind(rawDb);
+rawDb.prepare = (sql) => {
+  const stmt = _prep(sql);
+  return {
+    all:  (...args) => { try { return stmt.all(...args);  } finally { stmt.free(); } },
+    get:  (...args) => { try { return stmt.get(...args);  } finally { stmt.free(); } },
+    run:  (...args) => { try { return stmt.run(...args);  } finally { stmt.free(); } },
+  };
+};
+
+const db = rawDb;
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
