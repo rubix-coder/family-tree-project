@@ -105,7 +105,13 @@ const App = (() => {
   async function postLogin() {
     updateHeaderUser();
     startNotifPoll();
-    await navigate('dashboard');
+    const pendingInvite = localStorage.getItem('pending_invite');
+    if (pendingInvite) {
+      localStorage.removeItem('pending_invite');
+      await navigate('invite', { token: pendingInvite });
+    } else {
+      await navigate('dashboard');
+    }
   }
 
   async function logout() {
@@ -191,6 +197,9 @@ const App = (() => {
 
   // ── Dashboard ──────────────────────────────────────────────────────
   async function renderDashboard() {
+    if (!currentUser) {
+      try { currentUser = await API.auth.me(); updateHeaderUser(); } catch { showAuth(); return; }
+    }
     const main = document.getElementById('main-content');
     main.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
     try {
@@ -412,6 +421,9 @@ const App = (() => {
 
   // ── Tree View ──────────────────────────────────────────────────────
   async function renderTree(treeId) {
+    if (!currentUser) {
+      try { currentUser = await API.auth.me(); updateHeaderUser(); } catch { showAuth(); return; }
+    }
     const main = document.getElementById('main-content');
     main.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
     try {
@@ -1595,6 +1607,15 @@ ${embeddedJS}
     const path = location.pathname;
     const inviteMatch = path.match(/^\/invite\/([^/]+)$/);
     if (inviteMatch) {
+      if (API.isLoggedIn()) {
+        try {
+          currentUser = JSON.parse(localStorage.getItem('current_user') || 'null');
+          if (!currentUser) currentUser = await API.auth.me();
+          localStorage.setItem('current_user', JSON.stringify(currentUser));
+          updateHeaderUser();
+          startNotifPoll();
+        } catch { API.clearTokens(); }
+      }
       await navigate('invite', { token: inviteMatch[1] });
       return;
     }
