@@ -73,15 +73,10 @@ exit /b 0
 
 :: ── Step 2: Install app dependencies ──────────────────────────────────
 :check_deps
-if exist "node_modules\" goto start_server
-
-echo   Installing app packages (first run only, may take a minute)...
-echo.
+echo   Checking app packages...
 call npm install
 if errorlevel 1 goto deps_failed
 
-echo.
-echo   Packages installed.
 echo.
 goto start_server
 
