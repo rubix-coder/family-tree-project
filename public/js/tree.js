@@ -4,13 +4,14 @@ const TreeViz = (() => {
   let tfm = { x: 40, y: 40, s: 1 };
   let collapsedNodes = new Set();
   let spouseMap = {};
+  let partnersOf = {};
   let viewFilter = 'all', focalId = null;
   let nodePositions = {};   // id → { cx, cy }
   let highlight = null;
 
   // ── Constants ──────────────────────────────────────────────────────
   const NW = 170, NH = 80, HG = 56, VG = 110;
-  const CR = 12, R = 8;   // collapse-circle radius, edge corner radius
+  const CR = 12;   // collapse-circle radius
 
   // ── Public API ─────────────────────────────────────────────────────
   function init(tid, mems, role, clickCb) {
@@ -27,13 +28,33 @@ const TreeViz = (() => {
   }
 
   // ── Maps ───────────────────────────────────────────────────────────
+  function _parsePartnerIds(raw) {
+    try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : []; }
+    catch { return []; }
+  }
+
   function _buildMaps() {
-    spouseMap = {};
+    spouseMap = {}; partnersOf = {};
+    const addPartner = (a, b) => {
+      if (a === b) return;
+      if (!partnersOf[a]) partnersOf[a] = [];
+      if (!partnersOf[b]) partnersOf[b] = [];
+      if (!partnersOf[a].includes(b)) partnersOf[a].push(b);
+      if (!partnersOf[b].includes(a)) partnersOf[b].push(a);
+      spouseMap[a] = spouseMap[a] || b;
+      spouseMap[b] = spouseMap[b] || a;
+    };
     for (const m of members) {
-      if (m.spouse_id) {
-        spouseMap[m.id] = m.spouse_id;
-        spouseMap[m.spouse_id] = m.id;
+      if (m.spouse_id && members.find(x => x.id === m.spouse_id)) addPartner(m.id, m.spouse_id);
+      for (const pid of _parsePartnerIds(m.partner_ids)) {
+        if (members.find(x => x.id === pid)) addPartner(m.id, pid);
       }
+    }
+    // Infer partnerships from shared children
+    for (const m of members) {
+      const p = m.paternal_parent_id, q = m.maternal_parent_id;
+      if (p && q && p !== q && members.find(x => x.id === p) && members.find(x => x.id === q))
+        addPartner(p, q);
     }
   }
 
@@ -41,10 +62,10 @@ const TreeViz = (() => {
   function _descendants(id) {
     const result = new Set();
     function walk(nid) {
-      const sid = spouseMap[nid];
+      const pids = partnersOf[nid] || [];
       for (const m of members) {
         if (m.paternal_parent_id === nid || m.maternal_parent_id === nid ||
-            (sid && (m.paternal_parent_id === sid || m.maternal_parent_id === sid))) {
+            pids.some(pid => m.paternal_parent_id === pid || m.maternal_parent_id === pid)) {
           if (!result.has(m.id)) { result.add(m.id); walk(m.id); }
         }
       }
@@ -83,10 +104,11 @@ const TreeViz = (() => {
     function descend(id, depth) {
       if (!id || vis.has(id) || depth > 300) return;
       vis.add(id);
-      const sid = spouseMap[id]; if (sid) vis.add(sid);
+      const pids = partnersOf[id] || [];
+      for (const pid of pids) vis.add(pid);
       for (const m of members) {
         if (m.paternal_parent_id === id || m.maternal_parent_id === id ||
-            (sid && (m.paternal_parent_id === sid || m.maternal_parent_id === sid))) {
+            pids.some(pid => m.paternal_parent_id === pid || m.maternal_parent_id === pid)) {
           descend(m.id, depth + 1);
         }
       }
@@ -113,10 +135,12 @@ const TreeViz = (() => {
       }
     }
 
-    // Unique children of id (merging with visible spouse's children)
+    // Unique children of id, merging in every visible partner's children
     const getKids = id => {
-      const sid = spouseMap[id] && visIds.has(spouseMap[id]) ? spouseMap[id] : null;
-      const set = new Set([...(cof[id] || []), ...(sid ? cof[sid] || [] : [])]);
+      const set = new Set(cof[id] || []);
+      for (const pid of (partnersOf[id] || [])) {
+        if (visIds.has(pid)) (cof[pid] || []).forEach(k => set.add(k));
+      }
       return [...set];
     };
 
@@ -126,37 +150,46 @@ const TreeViz = (() => {
       (m.maternal_parent_id && visIds.has(m.maternal_parent_id))
     ).map(m => m.id));
 
-    // Root detection: no visible parent; for couples only take the smaller id
+    // Root: no visible parent; among a partner-group only the smallest id
     const roots = vis.filter(m => {
       if (hasVisParent.has(m.id)) return false;
-      const sid = spouseMap[m.id];
-      const sVis = sid && visIds.has(sid);
-      if (sVis && hasVisParent.has(sid)) return false;
-      if (sVis) return m.id < sid;  // couple: only one root per pair
+      const allPids = (partnersOf[m.id] || []).filter(p => visIds.has(p));
+      if (allPids.some(p => hasVisParent.has(p))) return false;
+      for (const pid of allPids) {
+        if (!hasVisParent.has(pid) && pid < m.id) return false;
+      }
       return true;
     });
     if (!roots.length && vis.length) roots.push(vis[0]);
 
     const placed = new Set();
 
-    // Recursive width-packing: each subtree occupies a disjoint column
-    // range, so siblings never overlap. Returns the next free column.
+    // Place id + all partners as a contiguous group; id sits in the middle.
+    function _placeGroup(id, partnerIds, groupLeft, depth) {
+      const idOffset = Math.floor(partnerIds.length / 2);
+      nodePositions[id] = { cx: groupLeft + idOffset, cy: depth };
+      let li = 0, ri = 0;
+      for (const pid of partnerIds) {
+        if (li < idOffset) { nodePositions[pid] = { cx: groupLeft + li, cy: depth }; li++; }
+        else { nodePositions[pid] = { cx: groupLeft + idOffset + 1 + ri, cy: depth }; ri++; }
+      }
+    }
+
+    // Recursive width-packing: each subtree occupies a disjoint integer
+    // column range, so siblings/couples never overlap.
     function placeSubtree(id, depth, leftCol) {
       placed.add(id);
-      const sid = spouseMap[id] && visIds.has(spouseMap[id]) ? spouseMap[id] : null;
-      if (sid) placed.add(sid);
-      const coupleW = sid ? 2 : 1;
+      const allPids = (partnersOf[id] || []).filter(p => visIds.has(p) && !placed.has(p));
+      allPids.forEach(p => placed.add(p));
+      const groupW = allPids.length + 1;
 
       const kids = getKids(id).filter(k => !placed.has(k));
 
       if (kids.length === 0) {
-        // Leaf: occupy its own column(s) at leftCol.
-        nodePositions[id] = { cx: leftCol, cy: depth };
-        if (sid) nodePositions[sid] = { cx: leftCol + 1, cy: depth };
-        return leftCol + coupleW;
+        _placeGroup(id, allPids, leftCol, depth);
+        return leftCol + groupW;
       }
 
-      // Lay children out side by side starting at leftCol.
       let c = leftCol;
       const kidCenters = [];
       for (const kid of kids) {
@@ -169,20 +202,12 @@ const TreeViz = (() => {
       const childrenRight = c;
       const center = kidCenters.length
         ? (Math.min(...kidCenters) + Math.max(...kidCenters)) / 2
-        : leftCol;
+        : leftCol + (groupW - 1) / 2;
 
-      if (sid) {
-        // Clamp so the left spouse never overlaps the previous sibling subtree.
-        const leftBound = Math.max(center - 0.5, leftCol);
-        const actualCenter = leftBound + 0.5;
-        nodePositions[id]  = { cx: actualCenter - 0.5, cy: depth };
-        nodePositions[sid] = { cx: actualCenter + 0.5, cy: depth };
-        return Math.max(childrenRight, actualCenter + 1);
-      } else {
-        const actualCx = Math.max(center, leftCol);
-        nodePositions[id] = { cx: actualCx, cy: depth };
-        return Math.max(childrenRight, actualCx + 1);
-      }
+      // Integer group origin, clamped so it never overlaps prior siblings.
+      const groupLeft = Math.max(Math.floor(center - (groupW - 1) / 2), leftCol);
+      _placeGroup(id, allPids, groupLeft, depth);
+      return Math.max(childrenRight, groupLeft + groupW);
     }
 
     let nextCol = 0;
@@ -196,14 +221,14 @@ const TreeViz = (() => {
     // Fallback for any member that slipped through — infer depth from relatives
     for (const m of vis) {
       if (!nodePositions[m.id]) {
-        const sid = spouseMap[m.id];
+        const pids = partnersOf[m.id] || [];
         let cy = 0;
         if (m.paternal_parent_id && nodePositions[m.paternal_parent_id]) {
           cy = nodePositions[m.paternal_parent_id].cy + 1;
         } else if (m.maternal_parent_id && nodePositions[m.maternal_parent_id]) {
           cy = nodePositions[m.maternal_parent_id].cy + 1;
-        } else if (sid && nodePositions[sid]) {
-          cy = nodePositions[sid].cy;
+        } else if (pids.some(p => nodePositions[p])) {
+          cy = nodePositions[pids.find(p => nodePositions[p])].cy;
         } else {
           for (const child of vis) {
             if ((child.paternal_parent_id === m.id || child.maternal_parent_id === m.id) && nodePositions[child.id]) {
@@ -223,30 +248,16 @@ const TreeViz = (() => {
     return { x: cx * (NW + HG) + 40, y: cy * (NH + VG) + 40 };
   }
 
-  // Rounded two-elbow path: (x1,y1) → midY → (x2,y2) with bezier corners
-  function _elbow(x1, y1, x2, y2) {
-    if (Math.abs(x1 - x2) < 0.5) return `M${x1},${y1} V${y2}`;
+  // Smooth S-curve with vertical tangents at both ends (cubic bezier)
+  function _scurve(x1, y1, x2, y2) {
+    if (Math.abs(x1 - x2) < 1) return `M${x1},${y1} V${y2}`;
     const midY = (y1 + y2) / 2;
-    const dx = (x2 > x1 ? 1 : -1) * Math.min(R, Math.abs(x2 - x1) / 2);
-    const dy = Math.min(R, (midY - y1) / 2, (y2 - midY) / 2);
-    return (
-      `M${x1},${y1} V${midY - dy} ` +
-      `Q${x1},${midY} ${x1 + dx},${midY} ` +
-      `H${x2 - dx} ` +
-      `Q${x2},${midY} ${x2},${midY + dy} V${y2}`
-    );
+    return `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`;
   }
 
-  // Rounded single-elbow path: (x1,y1) goes down then turns to reach (x2, endY)
-  function _halfElbow(x1, y1, x2, endY) {
-    if (Math.abs(x1 - x2) < 0.5) return `M${x1},${y1} V${endY}`;
-    const dx = (x2 > x1 ? 1 : -1) * Math.min(R, Math.abs(x2 - x1) / 2);
-    const dy = Math.min(R, (endY - y1) / 2);
-    return (
-      `M${x1},${y1} V${endY - dy} ` +
-      `Q${x1},${endY} ${x1 + dx},${endY} H${x2}`
-    );
-  }
+  // Per-generation color palette for lineage edges and bands
+  const GEN_COLORS = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#db2777'];
+  function _genClr(cy) { return GEN_COLORS[(cy || 0) % GEN_COLORS.length]; }
 
   function _wrap(name) {
     if (name.length <= 14) return [name, ''];
@@ -328,29 +339,54 @@ const TreeViz = (() => {
       _applyTfm(); return;
     }
 
-    let edges = '', nodes = '';
-    const drawnSpouse = new Set();
+    let edges = '', nodes = '', spouseEdges = '';
 
-    // ── Spouse connector lines (dashed pink) ───────────────────────
-    for (const m of vis) {
-      const sid = spouseMap[m.id];
-      if (!sid || !visIds.has(sid) || !nodePositions[m.id] || !nodePositions[sid]) continue;
-      const key = [m.id, sid].sort().join('|');
-      if (drawnSpouse.has(key)) continue;
-      drawnSpouse.add(key);
-      const p1 = _px(nodePositions[m.id].cx, nodePositions[m.id].cy);
-      const p2 = _px(nodePositions[sid].cx, nodePositions[sid].cy);
-      const [left, right] = p1.x < p2.x ? [p1, p2] : [p2, p1];
-      edges += `<line x1="${left.x + NW}" y1="${left.y + NH / 2}" x2="${right.x}" y2="${right.y + NH / 2}" stroke="#f472b6" stroke-width="2" stroke-dasharray="5,3" opacity="0.7"/>`;
+    // ── Generation bands (subtle colored strip per generation row) ──
+    const genBandMap = {};
+    for (const pos of Object.values(nodePositions)) {
+      const cy = pos.cy;
+      if (!genBandMap[cy]) genBandMap[cy] = { minCx: pos.cx, maxCx: pos.cx };
+      else {
+        genBandMap[cy].minCx = Math.min(genBandMap[cy].minCx, pos.cx);
+        genBandMap[cy].maxCx = Math.max(genBandMap[cy].maxCx, pos.cx);
+      }
+    }
+    let bands = '';
+    for (const [cyStr, band] of Object.entries(genBandMap)) {
+      const cy = parseInt(cyStr);
+      const { x: bx, y: by } = _px(band.minCx - 0.5, cy);
+      const bw = (band.maxCx - band.minCx + 2) * (NW + HG);
+      bands += `<rect x="${bx}" y="${by - 8}" width="${bw}" height="${NH + 16}" rx="14" fill="${_genClr(cy)}" fill-opacity="0.05"/>`;
     }
 
-    // ── Parent→child edges ─────────────────────────────────────────
+    const drawnPairs = new Set();
+
+    // ── Partner connector lines (dashed pink, with ♥) ──────────────
+    for (const m of vis) {
+      if (!nodePositions[m.id]) continue;
+      for (const pid of (partnersOf[m.id] || [])) {
+        if (!visIds.has(pid) || !nodePositions[pid]) continue;
+        const key = [m.id, pid].sort().join('|');
+        if (drawnPairs.has(key)) continue;
+        drawnPairs.add(key);
+        const p1 = _px(nodePositions[m.id].cx, nodePositions[m.id].cy);
+        const p2 = _px(nodePositions[pid].cx, nodePositions[pid].cy);
+        const [left, right] = p1.x < p2.x ? [p1, p2] : [p2, p1];
+        const lx = left.x + NW, rx = right.x, my = left.y + NH / 2;
+        spouseEdges += `<line x1="${lx}" y1="${my}" x2="${rx}" y2="${right.y + NH / 2}" stroke="#f472b6" stroke-width="2" stroke-dasharray="5,3" opacity="0.75"/>`;
+        if (Math.abs(left.y - right.y) < 1)
+          spouseEdges += `<text x="${(lx + rx) / 2}" y="${my + 4}" text-anchor="middle" font-size="10" fill="#f472b6" opacity="0.85">♥</text>`;
+      }
+    }
+
+    // ── Parent→child edges (smooth S-curves, generation-colored) ───
     for (const m of vis) {
       if (!nodePositions[m.id]) continue;
       const cp    = _px(nodePositions[m.id].cx, nodePositions[m.id].cy);
       const childCX = cp.x + NW / 2;
       const childTY = cp.y;
-      const midY   = childTY - VG / 2;
+      const childCy = nodePositions[m.id].cy;
+      const clr = _genClr(childCy);
 
       const pid  = m.paternal_parent_id;
       const mid_ = m.maternal_parent_id;
@@ -360,21 +396,22 @@ const TreeViz = (() => {
       if (!pp && !mp) continue;
 
       if (pp && mp && pid !== mid_) {
-        // Both parents visible → converge to junction dot, then down to child
+        // Both parents visible → two short curves to a junction, then S-curve down
         const fX = pp.x + NW / 2, fBY = pp.y + NH;
         const mX = mp.x + NW / 2, mBY = mp.y + NH;
         const jX = (fX + mX) / 2;
-
-        edges += `<path d="${_halfElbow(fX, fBY, jX, midY)}" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>`;
-        edges += `<path d="${_halfElbow(mX, mBY, jX, midY)}" stroke="#a78bfa" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>`;
-        edges += `<path d="${_elbow(jX, midY, childCX, childTY)}" stroke="#475569" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>`;
-        edges += `<circle cx="${jX}" cy="${midY}" r="3" fill="#6366f1" opacity="0.5"/>`;
+        const jBase = Math.max(fBY, mBY);
+        const jY = jBase + Math.max((childTY - jBase) * 0.18, 8);
+        edges += `<path d="${_scurve(fX, fBY, jX, jY)}" stroke="#6366f1" stroke-width="1.5" fill="none" opacity="0.55"/>`;
+        edges += `<path d="${_scurve(mX, mBY, jX, jY)}" stroke="#a78bfa" stroke-width="1.5" fill="none" opacity="0.55"/>`;
+        edges += `<path d="${_scurve(jX, jY, childCX, childTY)}" stroke="${clr}" stroke-width="1.5" fill="none" opacity="0.55"/>`;
+        edges += `<circle cx="${jX}" cy="${jY}" r="3" fill="${clr}" opacity="0.55"/>`;
       } else {
         // Single visible parent
         const src = pp || mp;
         const stroke = pp ? '#c9a84c' : '#a78bfa';
         const sX = src.x + NW / 2, sY = src.y + NH;
-        edges += `<path d="${_elbow(sX, sY, childCX, childTY)}" stroke="${stroke}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>`;
+        edges += `<path d="${_scurve(sX, sY, childCX, childTY)}" stroke="${stroke}" stroke-width="1.5" fill="none" opacity="0.6"/>`;
       }
     }
 
@@ -445,7 +482,7 @@ const TreeViz = (() => {
       ).join('');
     }
 
-    g.innerHTML = edges + nodes;
+    g.innerHTML = bands + spouseEdges + edges + nodes;
     _applyTfm();
   }
 

@@ -97,6 +97,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .avatar-lg { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: var(--navy-light); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.8rem; color: var(--gold); flex-shrink: 0; overflow: hidden; }
 
 .main-layout { display: flex; flex: 1; max-width: 1200px; margin: 0 auto; width: 100%; padding: 1.5rem; gap: 1.5rem; }
+.main-layout.tree-page { max-width: 100%; padding: .75rem 1rem; gap: 1rem; }
+.main-layout.tree-page .tree-viewer { height: calc(100vh - 130px); }
 .sidebar { width: 240px; flex-shrink: 0; }
 .sidebar-nav { background: var(--white); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); position: sticky; top: 80px; }
 .nav-item { display: flex; align-items: center; gap: .75rem; padding: .75rem 1.1rem; color: var(--gray-700); font-weight: 500; transition: all .15s; border-left: 3px solid transparent; }

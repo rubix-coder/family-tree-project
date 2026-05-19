@@ -31,6 +31,7 @@ const App = (() => {
     document.getElementById('app').className = 'ready';
 
     updateNavActive(route);
+    document.querySelector('.main-layout')?.classList.toggle('tree-page', route === 'tree');
 
     switch (route) {
       case 'dashboard': await renderDashboard(); break;
@@ -729,8 +730,14 @@ const App = (() => {
     openModal('member-form-modal', renderMemberForm(member, currentMembers), 'Edit Member');
   }
 
+  function _parsePartnerIds(raw) {
+    try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : []; }
+    catch { return []; }
+  }
+
   function renderMemberForm(member, members) {
     const others = member ? members.filter(m => m.id !== member.id) : members;
+    const curPartners = _parsePartnerIds(member && member.partner_ids);
     const opt = (m) => `<option value="${m.id}" ${member && member.paternal_parent_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`;
     const optMat = (m) => `<option value="${m.id}" ${member && member.maternal_parent_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`;
     const optSp = (m) => `<option value="${m.id}" ${member && member.spouse_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`;
@@ -755,8 +762,11 @@ const App = (() => {
         <select name="paternal_parent_id" class="form-control"><option value="">— none —</option>${others.map(opt).join('')}</select></div>
       <div class="form-group"><label>Mother (Maternal Parent)</label>
         <select name="maternal_parent_id" class="form-control"><option value="">— none —</option>${others.map(optMat).join('')}</select></div>
-      <div class="form-group"><label>Spouse / Partner</label>
+      <div class="form-group"><label>Spouse / Partner (Primary)</label>
         <select name="spouse_id" class="form-control"><option value="">— none —</option>${others.map(optSp).join('')}</select></div>
+      <div class="form-group"><label>Additional Partners</label>
+        <select name="partner_ids" class="form-control" multiple style="min-height:78px">${others.map(m => `<option value="${m.id}" ${curPartners.includes(m.id) ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}</select>
+        <p class="form-hint">Hold Ctrl/Cmd to select multiple past or present partners (shown side by side)</p></div>
       ` : ''}
       <div class="form-group"><label>Biography</label><textarea name="bio" class="form-control" rows="3">${member && member.bio ? escapeHtml(member.bio) : ''}</textarea></div>
       <div class="modal-footer" style="padding:0;margin-top:1rem">
@@ -770,7 +780,9 @@ const App = (() => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = {};
-    fd.forEach((v, k) => { data[k] = v.trim() || null; });
+    fd.forEach((v, k) => { data[k] = typeof v === 'string' ? (v.trim() || null) : v; });
+    const psel = e.target.querySelector('[name="partner_ids"]');
+    data.partner_ids = JSON.stringify(psel ? [...psel.selectedOptions].map(o => o.value).filter(Boolean) : []);
     try {
       if (memberId) {
         await API.members.update(currentTree.id, memberId, data);
@@ -1145,8 +1157,8 @@ const App = (() => {
       exported_at: new Date().toISOString(),
       tree: { name: currentTree.name, description: currentTree.description, privacy: currentTree.privacy },
       members: currentMembers.map(({ id, name, gender, birth_year, death_year, birth_place, bio,
-        paternal_parent_id, maternal_parent_id, spouse_id }) =>
-        ({ id, name, gender, birth_year, death_year, birth_place, bio, paternal_parent_id, maternal_parent_id, spouse_id }))
+        paternal_parent_id, maternal_parent_id, spouse_id, partner_ids }) =>
+        ({ id, name, gender, birth_year, death_year, birth_place, bio, paternal_parent_id, maternal_parent_id, spouse_id, partner_ids: partner_ids || '[]' }))
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1209,6 +1221,8 @@ const App = (() => {
         if (m.paternal_parent_id && idMap[m.paternal_parent_id]) updates.paternal_parent_id = idMap[m.paternal_parent_id];
         if (m.maternal_parent_id && idMap[m.maternal_parent_id]) updates.maternal_parent_id = idMap[m.maternal_parent_id];
         if (m.spouse_id && idMap[m.spouse_id]) updates.spouse_id = idMap[m.spouse_id];
+        const remapped = _parsePartnerIds(m.partner_ids).map(pid => idMap[pid]).filter(Boolean);
+        if (remapped.length) updates.partner_ids = JSON.stringify(remapped);
         if (Object.keys(updates).length) await API.members.update(currentTree.id, idMap[m.id], updates);
       }
       toast(`Imported ${data.members.length} member(s) successfully`, 'success');
