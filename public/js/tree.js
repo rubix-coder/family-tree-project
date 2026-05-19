@@ -1,411 +1,694 @@
 const TreeViz = (() => {
-  let members = [], treeId = null, myRole = 'viewer';
-  let scale = 1;
-  let onMemberClick = null;
-  let nodePositions = {};
-  let collapsedNodes = new Set(); // nodes whose subtree is hidden
+  // ── State ─────────────────────────────────────────────────────────
+  let treeId, members = [], myRole = 'viewer', onMemberClick;
+  let tfm = { x: 40, y: 40, s: 1 };
+  let collapsedNodes = new Set();
   let spouseMap = {};
-  let allChildrenOf = {};      // full tree children (unfiltered)
-  let viewFilter = 'all';
-  let focalId = null;
+  let partnersOf = {};
+  let viewFilter = 'all', focalId = null;
+  let nodePositions = {};   // id → { cx, cy }
+  let highlight = null;
 
-  const NODE_W = 140, NODE_H = 70, H_GAP = 60, V_GAP = 100;
+  // ── Constants ──────────────────────────────────────────────────────
+  const NW = 170, NH = 80, HG = 56, VG = 110;
+  const CR = 12;   // collapse-circle radius
 
-  function init(tid, mems, role, clickHandler) {
-    treeId = tid; members = mems; myRole = role; onMemberClick = clickHandler;
-    nodePositions = {}; collapsedNodes = new Set(); scale = 1;
+  // ── Public API ─────────────────────────────────────────────────────
+  function init(tid, mems, role, clickCb) {
+    treeId = tid; members = mems; myRole = role; onMemberClick = clickCb;
+    collapsedNodes = new Set(); highlight = null;
     focalId = mems.length ? mems[mems.length - 1].id : null;
-    buildSpouseMap();
-    buildAllChildrenOf();
-    buildLayout();
-    render();
+    tfm = { x: 40, y: 40, s: 1 };
+    _buildMaps(); _buildLayout(); _renderAll();
   }
 
   function update(mems) {
     members = mems;
-    buildSpouseMap();
-    buildAllChildrenOf();
-    buildLayout();
-    render();
+    _buildMaps(); _buildLayout(); _renderContent();
   }
 
-  function byId(id) { return members.find(m => m.id === id); }
-
-  function buildSpouseMap() {
-    spouseMap = {};
-    for (const m of members) {
-      if (m.spouse_id) { spouseMap[m.id] = m.spouse_id; spouseMap[m.spouse_id] = m.id; }
-    }
+  // ── Maps ───────────────────────────────────────────────────────────
+  function _parsePartnerIds(raw) {
+    try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : []; }
+    catch { return []; }
   }
 
-  // Build children map from full (unfiltered) members array
-  function buildAllChildrenOf() {
-    allChildrenOf = {};
+  function _buildMaps() {
+    spouseMap = {}; partnersOf = {};
+    const addPartner = (a, b) => {
+      if (a === b) return;
+      if (!partnersOf[a]) partnersOf[a] = [];
+      if (!partnersOf[b]) partnersOf[b] = [];
+      if (!partnersOf[a].includes(b)) partnersOf[a].push(b);
+      if (!partnersOf[b].includes(a)) partnersOf[b].push(a);
+      spouseMap[a] = spouseMap[a] || b;
+      spouseMap[b] = spouseMap[b] || a;
+    };
     for (const m of members) {
-      const parents = new Set([m.paternal_parent_id, m.maternal_parent_id].filter(Boolean));
-      for (const pid of parents) {
-        if (!allChildrenOf[pid]) allChildrenOf[pid] = [];
-        if (!allChildrenOf[pid].includes(m.id)) allChildrenOf[pid].push(m.id);
+      if (m.spouse_id && members.find(x => x.id === m.spouse_id)) addPartner(m.id, m.spouse_id);
+      for (const pid of _parsePartnerIds(m.partner_ids)) {
+        if (members.find(x => x.id === pid)) addPartner(m.id, pid);
       }
     }
+    // Infer partnerships from shared children
+    for (const m of members) {
+      const p = m.paternal_parent_id, q = m.maternal_parent_id;
+      if (p && q && p !== q && members.find(x => x.id === p) && members.find(x => x.id === q))
+        addPartner(p, q);
+    }
   }
 
-  // All descendants of a node (and its spouse), recursively
-  function getDescendants(id) {
+  // All descendants (from full members list, not filtered)
+  function _descendants(id) {
     const result = new Set();
     function walk(nid) {
-      const sid = spouseMap[nid];
-      const kids = [...(allChildrenOf[nid] || []), ...(sid ? allChildrenOf[sid] || [] : [])];
-      for (const kid of kids) {
-        if (result.has(kid)) continue;
-        result.add(kid);
-        walk(kid);
+      const pids = partnersOf[nid] || [];
+      for (const m of members) {
+        if (m.paternal_parent_id === nid || m.maternal_parent_id === nid ||
+            pids.some(pid => m.paternal_parent_id === pid || m.maternal_parent_id === pid)) {
+          if (!result.has(m.id)) { result.add(m.id); walk(m.id); }
+        }
       }
     }
-    walk(id);
-    return result;
+    walk(id); return result;
   }
 
-  function getVisibleMembers() {
-    let vis = viewFilter === 'all' ? [...members] : getLineageMembers();
+  function _visibleMembers() {
+    let vis = viewFilter === 'all' ? [...members] : _lineageMembers();
     if (!collapsedNodes.size) return vis;
     const hidden = new Set();
-    for (const cid of collapsedNodes) {
-      for (const d of getDescendants(cid)) hidden.add(d);
-    }
+    for (const cid of collapsedNodes) for (const d of _descendants(cid)) hidden.add(d);
     return vis.filter(m => !hidden.has(m.id));
   }
 
-  function getLineageMembers() {
-    const visible = new Set();
-    const startId = focalId || (members.length ? members[members.length - 1].id : null);
-    function addChain(id, depth) {
-      if (!id || visible.has(id) || depth > 100) return;
-      const m = byId(id);
-      if (!m) return;
-      visible.add(id);
-      const sid = spouseMap[id];
-      if (sid) visible.add(sid);
-      addChain(viewFilter === 'paternal' ? m.paternal_parent_id : m.maternal_parent_id, depth + 1);
+  function _lineageMembers() {
+    const start = focalId && members.find(x => x.id === focalId)
+      ? focalId
+      : (members.length ? members[members.length - 1].id : null);
+    if (!start) return [];
+
+    // 1. Walk up the chosen side to the topmost ancestor.
+    let topId = start, cur = start, guard = 0;
+    const upSeen = new Set();
+    while (cur && !upSeen.has(cur) && guard++ < 300) {
+      upSeen.add(cur);
+      const m = members.find(x => x.id === cur); if (!m) break;
+      const pid = viewFilter === 'paternal' ? m.paternal_parent_id : m.maternal_parent_id;
+      if (pid && members.find(x => x.id === pid)) { topId = pid; cur = pid; }
+      else break;
     }
-    addChain(startId, 0);
-    return members.filter(m => visible.has(m.id));
+
+    // 2. From the top ancestor, include the entire descendant subtree
+    //    plus spouses, so every visible node keeps its connector.
+    const vis = new Set();
+    function descend(id, depth) {
+      if (!id || vis.has(id) || depth > 300) return;
+      vis.add(id);
+      const pids = partnersOf[id] || [];
+      for (const pid of pids) vis.add(pid);
+      for (const m of members) {
+        if (m.paternal_parent_id === id || m.maternal_parent_id === id ||
+            pids.some(pid => m.paternal_parent_id === pid || m.maternal_parent_id === pid)) {
+          descend(m.id, depth + 1);
+        }
+      }
+    }
+    descend(topId, 0);
+    return members.filter(m => vis.has(m.id));
   }
 
-  function buildLayout() {
+  // ── Layout ─────────────────────────────────────────────────────────
+  function _buildLayout() {
     nodePositions = {};
-    const vis = getVisibleMembers();
-    const placed = new Set();
+    const vis = _visibleMembers();
+    if (!vis.length) return;
 
-    // Local children map for visible members only
-    const childrenOf = {};
+    const visIds = new Set(vis.map(m => m.id));
+
+    // Children map: parent_id → [child_ids] — only for VISIBLE parents
+    const cof = {};
     for (const m of vis) {
-      const parents = new Set([m.paternal_parent_id, m.maternal_parent_id].filter(Boolean));
-      for (const pid of parents) {
-        if (!childrenOf[pid]) childrenOf[pid] = [];
-        if (!childrenOf[pid].includes(m.id)) childrenOf[pid].push(m.id);
+      for (const pid of [m.paternal_parent_id, m.maternal_parent_id].filter(Boolean)) {
+        if (!visIds.has(pid)) continue;
+        if (!cof[pid]) cof[pid] = [];
+        if (!cof[pid].includes(m.id)) cof[pid].push(m.id);
       }
     }
 
-    function getChildren(id) {
-      return (childrenOf[id] || []).map(cid => vis.find(m => m.id === cid)).filter(Boolean);
-    }
+    // Unique children of id, merging in every visible partner's children
+    const getKids = id => {
+      const set = new Set(cof[id] || []);
+      for (const pid of (partnersOf[id] || [])) {
+        if (visIds.has(pid)) (cof[pid] || []).forEach(k => set.add(k));
+      }
+      return [...set];
+    };
 
-    const hasParents = new Set(vis.filter(m => m.paternal_parent_id || m.maternal_parent_id).map(m => m.id));
+    // Members that have at least one VISIBLE parent
+    const hasVisParent = new Set(vis.filter(m =>
+      (m.paternal_parent_id && visIds.has(m.paternal_parent_id)) ||
+      (m.maternal_parent_id && visIds.has(m.maternal_parent_id))
+    ).map(m => m.id));
+
+    // Root: no visible parent; among a partner-group only the smallest id
     const roots = vis.filter(m => {
-      if (hasParents.has(m.id)) return false;
-      const sid = spouseMap[m.id];
-      if (!sid) return true;
-      if (hasParents.has(sid)) return false;
-      return m.id < sid;
+      if (hasVisParent.has(m.id)) return false;
+      const allPids = (partnersOf[m.id] || []).filter(p => visIds.has(p));
+      if (allPids.some(p => hasVisParent.has(p))) return false;
+      for (const pid of allPids) {
+        if (!hasVisParent.has(pid) && pid < m.id) return false;
+      }
+      return true;
     });
     if (!roots.length && vis.length) roots.push(vis[0]);
 
-    function placeSubtree(member, depth, column) {
-      if (placed.has(member.id)) return column;
-      placed.add(member.id);
+    const placed = new Set();
 
-      const childIds = new Set();
-      for (const c of getChildren(member.id)) childIds.add(c.id);
-      const sid = spouseMap[member.id];
-      if (sid) for (const c of getChildren(sid)) childIds.add(c.id);
-      const children = [...childIds].map(id => vis.find(m => m.id === id)).filter(Boolean);
-
-      let childCols = [], c = column;
-      for (const child of children) {
-        if (placed.has(child.id)) continue;
-        c = placeSubtree(child, depth + 1, c);
-        childCols.push(nodePositions[child.id] ? nodePositions[child.id].cx : c);
-        c++;
+    // Place id + all partners as a contiguous group; id sits in the middle.
+    function _placeGroup(id, partnerIds, groupLeft, depth) {
+      const idOffset = Math.floor(partnerIds.length / 2);
+      nodePositions[id] = { cx: groupLeft + idOffset, cy: depth };
+      let li = 0, ri = 0;
+      for (const pid of partnerIds) {
+        if (li < idOffset) { nodePositions[pid] = { cx: groupLeft + li, cy: depth }; li++; }
+        else { nodePositions[pid] = { cx: groupLeft + idOffset + 1 + ri, cy: depth }; ri++; }
       }
-
-      const x = childCols.length ? (Math.min(...childCols) + Math.max(...childCols)) / 2 : column;
-      nodePositions[member.id] = { cx: x, cy: depth };
-
-      if (sid && !placed.has(sid)) {
-        const spouse = vis.find(m => m.id === sid);
-        if (spouse) {
-          placed.add(spouse.id);
-          nodePositions[spouse.id] = { cx: x + 1, cy: depth };
-          c = Math.max(c, x + 2);
-        }
-      }
-      return childCols.length ? c : column + 1;
     }
 
-    let startCol = 0;
-    for (const root of roots) {
-      if (!placed.has(root.id)) startCol = placeSubtree(root, 0, startCol) + 1;
+    // Recursive width-packing: each subtree occupies a disjoint integer
+    // column range, so siblings/couples never overlap.
+    function placeSubtree(id, depth, leftCol) {
+      placed.add(id);
+      const allPids = (partnersOf[id] || []).filter(p => visIds.has(p) && !placed.has(p));
+      allPids.forEach(p => placed.add(p));
+      const groupW = allPids.length + 1;
+
+      const kids = getKids(id).filter(k => !placed.has(k));
+
+      if (kids.length === 0) {
+        _placeGroup(id, allPids, leftCol, depth);
+        return leftCol + groupW;
+      }
+
+      let c = leftCol;
+      const kidCenters = [];
+      for (const kid of kids) {
+        if (placed.has(kid)) continue;
+        const next = placeSubtree(kid, depth + 1, c);
+        if (nodePositions[kid]) kidCenters.push(nodePositions[kid].cx);
+        c = next;
+      }
+
+      const childrenRight = c;
+      const center = kidCenters.length
+        ? (Math.min(...kidCenters) + Math.max(...kidCenters)) / 2
+        : leftCol + (groupW - 1) / 2;
+
+      // Integer group origin, clamped so it never overlaps prior siblings.
+      const groupLeft = Math.max(Math.floor(center - (groupW - 1) / 2), leftCol);
+      _placeGroup(id, allPids, groupLeft, depth);
+      return Math.max(childrenRight, groupLeft + groupW);
     }
-    let extra = 0;
+
+    let nextCol = 0;
+    for (const r of roots) {
+      if (!placed.has(r.id)) {
+        nextCol = placeSubtree(r.id, 0, nextCol);
+        nextCol = Math.ceil(nextCol) + 1; // gap between separate family trees
+      }
+    }
+
+    // Fallback for any member that slipped through — infer depth from relatives
     for (const m of vis) {
-      if (!nodePositions[m.id]) { nodePositions[m.id] = { cx: startCol + extra, cy: 0 }; extra++; }
+      if (!nodePositions[m.id]) {
+        const pids = partnersOf[m.id] || [];
+        let cy = 0;
+        if (m.paternal_parent_id && nodePositions[m.paternal_parent_id]) {
+          cy = nodePositions[m.paternal_parent_id].cy + 1;
+        } else if (m.maternal_parent_id && nodePositions[m.maternal_parent_id]) {
+          cy = nodePositions[m.maternal_parent_id].cy + 1;
+        } else if (pids.some(p => nodePositions[p])) {
+          cy = nodePositions[pids.find(p => nodePositions[p])].cy;
+        } else {
+          for (const child of vis) {
+            if ((child.paternal_parent_id === m.id || child.maternal_parent_id === m.id) && nodePositions[child.id]) {
+              cy = Math.max(0, nodePositions[child.id].cy - 1);
+              break;
+            }
+          }
+        }
+        nodePositions[m.id] = { cx: nextCol, cy };
+        nextCol++;
+      }
     }
   }
 
-  function toPixel(cx, cy) {
-    return { x: cx * (NODE_W + H_GAP) + 40, y: cy * (NODE_H + V_GAP) + 40 };
+  // ── Pixel helpers ──────────────────────────────────────────────────
+  function _px(cx, cy) {
+    return { x: cx * (NW + HG) + 40, y: cy * (NH + VG) + 40 };
   }
 
-  function render() {
+  // Smooth S-curve with vertical tangents at both ends (cubic bezier)
+  function _scurve(x1, y1, x2, y2) {
+    if (Math.abs(x1 - x2) < 1) return `M${x1},${y1} V${y2}`;
+    const midY = (y1 + y2) / 2;
+    return `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`;
+  }
+
+  // Per-generation color palette for lineage edges and bands
+  const GEN_COLORS = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#db2777'];
+  function _genClr(cy) { return GEN_COLORS[(cy || 0) % GEN_COLORS.length]; }
+
+  function _wrap(name) {
+    if (name.length <= 14) return [name, ''];
+    const words = name.split(' ');
+    if (words.length === 1) return [name.slice(0, 13) + '…', ''];
+    let l1 = words[0], i = 1;
+    while (i < words.length && (l1 + ' ' + words[i]).length <= 14) l1 += ' ' + words[i++];
+    let l2 = words.slice(i).join(' ');
+    if (l2.length > 15) l2 = l2.slice(0, 14) + '…';
+    return [l1, l2];
+  }
+
+  function _esc(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ── Rendering ──────────────────────────────────────────────────────
+  function _renderAll() {
     const container = document.getElementById('tree-canvas');
     if (!container) return;
-
-    const vis = getVisibleMembers();
-
-    if (!vis.length) {
-      container.innerHTML = `<div class="tree-empty"><div class="tree-empty-icon">🌳</div><p>No family members yet.</p>${myRole !== 'viewer' ? '<button class="btn btn-primary" onclick="App.showAddMember()">Add First Member</button>' : ''}</div>`;
-      return;
-    }
-
-    const maxCx = Math.max(...Object.values(nodePositions).map(p => p.cx), 0);
-    const maxCy = Math.max(...Object.values(nodePositions).map(p => p.cy), 0);
-    const svgW = (maxCx + 2) * (NODE_W + H_GAP) + 80;
-    const svgH = (maxCy + 1) * (NODE_H + V_GAP) + 80;
-
-    // ── Edges ──────────────────────────────────────────────────────────
-    let edgesHTML = '';
-    const drawnSpouse = new Set();
-    for (const m of vis) {
-      const sid = spouseMap[m.id];
-      if (!sid || !nodePositions[m.id] || !nodePositions[sid]) continue;
-      const key = [m.id, sid].sort().join('|');
-      if (drawnSpouse.has(key)) continue;
-      drawnSpouse.add(key);
-      const p1 = toPixel(nodePositions[m.id].cx, nodePositions[m.id].cy);
-      const p2 = toPixel(nodePositions[sid].cx, nodePositions[sid].cy);
-      edgesHTML += `<line x1="${p1.x + NODE_W / 2}" y1="${p1.y + NODE_H / 2}" x2="${p2.x + NODE_W / 2}" y2="${p2.y + NODE_H / 2}" stroke="#f472b6" stroke-width="2" stroke-dasharray="6,3" opacity="0.8"/>`;
-    }
-
-    for (const m of vis) {
-      if (!nodePositions[m.id]) continue;
-      const mpos = toPixel(nodePositions[m.id].cx, nodePositions[m.id].cy);
-      const childCx = mpos.x + NODE_W / 2, childTopY = mpos.y;
-      const pid = m.paternal_parent_id, mid = m.maternal_parent_id;
-      const pPos = pid && nodePositions[pid] ? toPixel(nodePositions[pid].cx, nodePositions[pid].cy) : null;
-      const mPos = mid && nodePositions[mid] ? toPixel(nodePositions[mid].cx, nodePositions[mid].cy) : null;
-
-      let fromX, fromY, stroke;
-      if (pPos && mPos && pid !== mid) {
-        fromX = (pPos.x + NODE_W / 2 + mPos.x + NODE_W / 2) / 2;
-        fromY = pPos.y + NODE_H; stroke = '#6366f1';
-      } else if (pPos) {
-        fromX = pPos.x + NODE_W / 2; fromY = pPos.y + NODE_H; stroke = '#c9a84c';
-      } else if (mPos) {
-        fromX = mPos.x + NODE_W / 2; fromY = mPos.y + NODE_H; stroke = '#a78bfa';
-      } else continue;
-
-      const ctrlY = fromY + (childTopY - fromY) * 0.5;
-      edgesHTML += `<path d="M${fromX},${fromY} C${fromX},${ctrlY} ${childCx},${ctrlY} ${childCx},${childTopY}" stroke="${stroke}" stroke-width="2" fill="none" opacity="0.8"/>`;
-    }
-
-    // ── Nodes ──────────────────────────────────────────────────────────
-    let nodesHTML = '';
-    for (const m of vis) {
-      const pos = nodePositions[m.id];
-      if (!pos) continue;
-      const { x, y } = toPixel(pos.cx, pos.cy);
-      const gc = m.gender === 'male' ? '#3b82f6' : m.gender === 'female' ? '#ec4899' : '#8b5cf6';
-      const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-
-      const isCollapsed = collapsedNodes.has(m.id);
-      const descendants = getDescendants(m.id);
-      const hasChildren = descendants.size > 0;
-      // How many direct visible children does this node have?
-      const hiddenCount = isCollapsed ? descendants.size : 0;
-
-      const photoHTML = m.photo
-        ? `<image href="${m.photo}" x="${x + 8}" y="${y + 8}" width="36" height="36" clip-path="url(#cp${m.id.slice(0, 8)})" preserveAspectRatio="xMidYMid slice"/><clipPath id="cp${m.id.slice(0, 8)}"><circle cx="${x + 26}" cy="${y + 26}" r="18"/></clipPath>`
-        : `<circle cx="${x + 26}" cy="${y + 26}" r="18" fill="${gc}" opacity="0.2"/><text x="${x + 26}" y="${y + 31}" text-anchor="middle" font-size="12" font-weight="700" fill="${gc}">${initials}</text>`;
-      const lifespan = [m.birth_year, m.death_year].filter(Boolean).join(' – ');
-      const fs = m.name.length > 14 ? '10' : m.name.length > 10 ? '11' : '12';
-
-      // Collapse toggle button (⊖ to hide subtree, ▶N to expand)
-      let collapseBtn = '';
-      if (isCollapsed) {
-        collapseBtn = `<g onclick="event.stopPropagation();TreeViz.toggleCollapse('${m.id}')" style="cursor:pointer" title="Expand ${hiddenCount} hidden">
-          <rect x="${x + NODE_W / 2 - 18}" y="${y + NODE_H - 1}" width="36" height="16" rx="8" fill="${gc}" opacity="0.15"/>
-          <text x="${x + NODE_W / 2}" y="${y + NODE_H + 10}" text-anchor="middle" font-size="9" font-weight="700" fill="${gc}">▶ ${hiddenCount}</text>
-        </g>`;
-      } else if (hasChildren) {
-        collapseBtn = `<text x="${x + NODE_W - 5}" y="${y + 13}" text-anchor="end" font-size="13" fill="#94a3b8" onclick="event.stopPropagation();TreeViz.toggleCollapse('${m.id}')" style="cursor:pointer" title="Collapse subtree">⊖</text>`;
-      }
-
-      nodesHTML += `
-        <g class="tree-node" data-id="${m.id}">
-          <rect x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="10" fill="white" stroke="${gc}" stroke-width="${isCollapsed ? 2.5 : 2}" ${isCollapsed ? 'stroke-dasharray="6,3"' : ''} filter="url(#shadow)" onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer"/>
-          ${photoHTML}
-          <text x="${x + 54}" y="${y + 24}" font-size="${fs}" font-weight="600" fill="#1e293b" dominant-baseline="middle" onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer">${escapeXml(m.name.length > 16 ? m.name.slice(0, 15) + '…' : m.name)}</text>
-          ${lifespan ? `<text x="${x + 54}" y="${y + 42}" font-size="9" fill="#64748b" onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer">${escapeXml(lifespan)}</text>` : ''}
-          ${m.death_year ? `<text x="${x + NODE_W - 22}" y="${y + 13}" font-size="10" text-anchor="end" fill="#94a3b8">✝</text>` : ''}
-          ${collapseBtn}
-        </g>`;
-    }
-
     const focalOpts = members.map(m =>
-      `<option value="${m.id}" ${m.id === focalId ? 'selected' : ''}>${escapeXml(m.name)}</option>`
+      `<option value="${m.id}" ${m.id === focalId ? 'selected' : ''}>${_esc(m.name)}</option>`
     ).join('');
 
     container.innerHTML = `
       <div class="tree-toolbar">
         <div class="tree-filter-group">
-          <span class="tree-toolbar-label">View from:</span>
-          <select class="tree-select" onchange="TreeViz.setFocal(this.value)">${focalOpts}</select>
-          <button class="tree-filter-btn ${viewFilter === 'all' ? 'active' : ''}" onclick="TreeViz.setFilter('all')">All</button>
-          <button class="tree-filter-btn ${viewFilter === 'paternal' ? 'active' : ''}" onclick="TreeViz.setFilter('paternal')">👨 Paternal</button>
-          <button class="tree-filter-btn ${viewFilter === 'maternal' ? 'active' : ''}" onclick="TreeViz.setFilter('maternal')">👩 Maternal</button>
+          <span class="tree-toolbar-label">View:</span>
+          <button class="tree-filter-btn ${viewFilter === 'all' ? 'active' : ''}" onclick="TreeViz.setFilter('all',this)">All</button>
+          <button class="tree-filter-btn ${viewFilter === 'paternal' ? 'active' : ''}" onclick="TreeViz.setFilter('paternal',this)">👨 Paternal</button>
+          <button class="tree-filter-btn ${viewFilter === 'maternal' ? 'active' : ''}" onclick="TreeViz.setFilter('maternal',this)">👩 Maternal</button>
+          <span class="tree-toolbar-label" style="margin-left:.5rem">From:</span>
+          <select class="tree-select" id="tree-focal-sel" onchange="TreeViz.setFocal(this.value)">${focalOpts}</select>
+        </div>
+        <div class="tree-search-wrap">
+          <span class="tree-search-icon">🔍</span>
+          <input class="tree-search-input" id="tree-search-inp" type="search" placeholder="Search member…" oninput="TreeViz.search(this.value)">
         </div>
         <div class="tree-controls-row">
-          <button class="tree-btn" onclick="TreeViz.zoom(0.2)" title="Zoom in">+</button>
-          <button class="tree-btn" onclick="TreeViz.zoom(-0.2)" title="Zoom out">−</button>
-          <button class="tree-btn" onclick="TreeViz.resetView()" title="Reset view">⊙</button>
-          <button class="tree-btn tree-btn-dl" onclick="TreeViz.downloadPNG()" title="Download PNG">↓ PNG</button>
-          <button class="tree-btn tree-btn-dl" onclick="TreeViz.downloadPDF()" title="Download PDF">↓ PDF</button>
+          <button class="tree-btn" onclick="TreeViz.zoom(0.15)" title="Zoom in">+</button>
+          <button class="tree-btn" onclick="TreeViz.zoom(-0.15)" title="Zoom out">−</button>
+          <button class="tree-btn" onclick="TreeViz.fitView()" title="Fit to screen">⊙</button>
+          <button class="tree-btn" id="tree-fs-btn" onclick="TreeViz.toggleFullscreen()" title="Fullscreen">⛶</button>
+          <button class="tree-btn tree-btn-dl" onclick="TreeViz.downloadPNG()">↓ PNG</button>
         </div>
       </div>
-      <div class="tree-scroll" id="tree-scroll-wrap">
-        <svg id="tree-svg" width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="transform:scale(${scale});transform-origin:top left">
+      <div class="tree-stage" id="tree-stage">
+        <svg id="tree-svg" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
           <defs>
-            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000022"/>
+            <filter id="tshadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000018"/>
             </filter>
           </defs>
-          ${edgesHTML}
-          ${nodesHTML}
+          <g id="tree-g"></g>
         </svg>
       </div>`;
 
-    setupPan();
+    _setupInteraction();
+    _renderContent();
+    requestAnimationFrame(() => fitView());
   }
 
-  function escapeXml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function _renderContent() {
+    const g = document.getElementById('tree-g');
+    if (!g) { _renderAll(); return; }
+
+    const vis = _visibleMembers();
+    const visIds = new Set(vis.map(m => m.id));
+
+    if (!vis.length) {
+      g.innerHTML = `<foreignObject x="0" y="0" width="600" height="300">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:260px;gap:1rem;color:#64748b;font-family:system-ui,sans-serif">
+          <div style="font-size:3.5rem">🌳</div>
+          <p>No members to display.</p>
+          ${myRole !== 'viewer' ? '<button onclick="App.showAddMember()" style="padding:.5rem 1.25rem;background:#1a2744;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem">Add First Member</button>' : ''}
+        </div></foreignObject>`;
+      _applyTfm(); return;
+    }
+
+    let edges = '', nodes = '', spouseEdges = '';
+
+    // ── Generation bands (subtle colored strip per generation row) ──
+    const genBandMap = {};
+    for (const pos of Object.values(nodePositions)) {
+      const cy = pos.cy;
+      if (!genBandMap[cy]) genBandMap[cy] = { minCx: pos.cx, maxCx: pos.cx };
+      else {
+        genBandMap[cy].minCx = Math.min(genBandMap[cy].minCx, pos.cx);
+        genBandMap[cy].maxCx = Math.max(genBandMap[cy].maxCx, pos.cx);
+      }
+    }
+    let bands = '';
+    for (const [cyStr, band] of Object.entries(genBandMap)) {
+      const cy = parseInt(cyStr);
+      const { x: bx, y: by } = _px(band.minCx - 0.5, cy);
+      const bw = (band.maxCx - band.minCx + 2) * (NW + HG);
+      bands += `<rect x="${bx}" y="${by - 8}" width="${bw}" height="${NH + 16}" rx="14" fill="${_genClr(cy)}" fill-opacity="0.05"/>`;
+    }
+
+    const drawnPairs = new Set();
+
+    // ── Partner connector lines (dashed pink, with ♥) ──────────────
+    for (const m of vis) {
+      if (!nodePositions[m.id]) continue;
+      for (const pid of (partnersOf[m.id] || [])) {
+        if (!visIds.has(pid) || !nodePositions[pid]) continue;
+        const key = [m.id, pid].sort().join('|');
+        if (drawnPairs.has(key)) continue;
+        drawnPairs.add(key);
+        const p1 = _px(nodePositions[m.id].cx, nodePositions[m.id].cy);
+        const p2 = _px(nodePositions[pid].cx, nodePositions[pid].cy);
+        const [left, right] = p1.x < p2.x ? [p1, p2] : [p2, p1];
+        const lx = left.x + NW, rx = right.x, my = left.y + NH / 2;
+        spouseEdges += `<line x1="${lx}" y1="${my}" x2="${rx}" y2="${right.y + NH / 2}" stroke="#f472b6" stroke-width="2" stroke-dasharray="5,3" opacity="0.75"/>`;
+        if (Math.abs(left.y - right.y) < 1)
+          spouseEdges += `<text x="${(lx + rx) / 2}" y="${my + 4}" text-anchor="middle" font-size="10" fill="#f472b6" opacity="0.85">♥</text>`;
+      }
+    }
+
+    // ── Parent→child edges (smooth S-curves, generation-colored) ───
+    for (const m of vis) {
+      if (!nodePositions[m.id]) continue;
+      const cp    = _px(nodePositions[m.id].cx, nodePositions[m.id].cy);
+      const childCX = cp.x + NW / 2;
+      const childTY = cp.y;
+      const childCy = nodePositions[m.id].cy;
+      const clr = _genClr(childCy);
+
+      const pid  = m.paternal_parent_id;
+      const mid_ = m.maternal_parent_id;
+      const pp = pid  && visIds.has(pid)  && nodePositions[pid]  ? _px(nodePositions[pid].cx,  nodePositions[pid].cy)  : null;
+      const mp = mid_ && visIds.has(mid_) && nodePositions[mid_] ? _px(nodePositions[mid_].cx, nodePositions[mid_].cy) : null;
+
+      if (!pp && !mp) continue;
+
+      if (pp && mp && pid !== mid_) {
+        // Both parents visible → two short curves to a junction, then S-curve down
+        const fX = pp.x + NW / 2, fBY = pp.y + NH;
+        const mX = mp.x + NW / 2, mBY = mp.y + NH;
+        const jX = (fX + mX) / 2;
+        const jBase = Math.max(fBY, mBY);
+        const jY = jBase + Math.max((childTY - jBase) * 0.18, 8);
+        edges += `<path d="${_scurve(fX, fBY, jX, jY)}" stroke="#6366f1" stroke-width="1.5" fill="none" opacity="0.55"/>`;
+        edges += `<path d="${_scurve(mX, mBY, jX, jY)}" stroke="#a78bfa" stroke-width="1.5" fill="none" opacity="0.55"/>`;
+        edges += `<path d="${_scurve(jX, jY, childCX, childTY)}" stroke="${clr}" stroke-width="1.5" fill="none" opacity="0.55"/>`;
+        edges += `<circle cx="${jX}" cy="${jY}" r="3" fill="${clr}" opacity="0.55"/>`;
+      } else {
+        // Single visible parent
+        const src = pp || mp;
+        const stroke = pp ? '#c9a84c' : '#a78bfa';
+        const sX = src.x + NW / 2, sY = src.y + NH;
+        edges += `<path d="${_scurve(sX, sY, childCX, childTY)}" stroke="${stroke}" stroke-width="1.5" fill="none" opacity="0.6"/>`;
+      }
+    }
+
+    // ── Nodes ──────────────────────────────────────────────────────
+    for (const m of vis) {
+      const pos = nodePositions[m.id];
+      if (!pos) continue;
+      const { x, y } = _px(pos.cx, pos.cy);
+      const gc    = m.gender === 'male' ? '#3b82f6' : m.gender === 'female' ? '#ec4899' : '#8b5cf6';
+      const isHL  = m.id === highlight;
+      const [l1, l2] = _wrap(m.name);
+      const lifespan  = [m.birth_year, m.death_year].filter(Boolean).join(' – ');
+      const isCollapsed = collapsedNodes.has(m.id);
+      const desc   = _descendants(m.id);
+      const hasKids = desc.size > 0;
+
+      const initials = _esc(m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2));
+      const safeId   = m.id.replace(/-/g, '');
+
+      const photoEl = m.photo
+        ? `<image href="${m.photo}" x="${x+8}" y="${y+8}" width="42" height="42" clip-path="url(#cp${safeId})" preserveAspectRatio="xMidYMid slice"/>
+           <clipPath id="cp${safeId}"><circle cx="${x+29}" cy="${y+29}" r="21"/></clipPath>`
+        : `<circle cx="${x+29}" cy="${y+29}" r="21" fill="${gc}" opacity="0.15"/>
+           <text x="${x+29}" y="${y+34}" text-anchor="middle" font-size="13" font-weight="700" fill="${gc}">${initials}</text>`;
+
+      const nameEl = l2
+        ? `<text x="${x+62}" y="${y+22}" font-size="11" font-weight="700" fill="#1e293b" dominant-baseline="middle">${_esc(l1)}</text>
+           <text x="${x+62}" y="${y+37}" font-size="10.5" font-weight="600" fill="#334155" dominant-baseline="middle">${_esc(l2)}</text>`
+        : `<text x="${x+62}" y="${y+29}" font-size="12" font-weight="700" fill="#1e293b" dominant-baseline="middle">${_esc(l1)}</text>`;
+
+      const lifespanEl = lifespan
+        ? `<text x="${x+62}" y="${y+58}" font-size="9" fill="#64748b">${_esc(lifespan)}</text>` : '';
+      const deadEl = m.death_year
+        ? `<text x="${x+NW-7}" y="${y+14}" text-anchor="end" font-size="10" fill="#94a3b8">✝</text>` : '';
+
+      const hlRing = isHL
+        ? `<rect x="${x-5}" y="${y-5}" width="${NW+10}" height="${NH+10}" rx="15" fill="none" stroke="#f59e0b" stroke-width="3" stroke-dasharray="6,3"/>` : '';
+
+      let collapseEl = '';
+      const by = y + NH + CR + 3;
+      if (isCollapsed) {
+        const label = desc.size > 99 ? '99+' : `+${desc.size}`;
+        collapseEl = `<g class="col-btn" onclick="event.stopPropagation();TreeViz.toggleCollapse('${m.id}')" style="cursor:pointer">
+          <circle cx="${x+NW/2}" cy="${by}" r="${CR}" fill="${gc}"/>
+          <text x="${x+NW/2}" y="${by+4}" text-anchor="middle" font-size="9.5" font-weight="700" fill="white">${label}</text>
+        </g>`;
+      } else if (hasKids) {
+        collapseEl = `<g class="col-btn" onclick="event.stopPropagation();TreeViz.toggleCollapse('${m.id}')" style="cursor:pointer">
+          <circle cx="${x+NW/2}" cy="${by}" r="${CR}" fill="white" stroke="${gc}" stroke-width="1.5"/>
+          <text x="${x+NW/2}" y="${by+5}" text-anchor="middle" font-size="16" font-weight="400" fill="${gc}">−</text>
+        </g>`;
+      }
+
+      nodes += `<g class="tree-node" data-id="${m.id}">
+        ${hlRing}
+        <rect x="${x}" y="${y}" width="${NW}" height="${NH}" rx="10" fill="white"
+          stroke="${gc}" stroke-width="${isHL ? 3 : 2}" filter="url(#tshadow)"
+          onclick="TreeViz.handleClick('${m.id}')" style="cursor:pointer"/>
+        ${photoEl}${nameEl}${lifespanEl}${deadEl}${collapseEl}
+      </g>`;
+    }
+
+    // Keep focal selector current
+    const fsel = document.getElementById('tree-focal-sel');
+    if (fsel) {
+      fsel.innerHTML = members.map(m =>
+        `<option value="${m.id}" ${m.id === focalId ? 'selected' : ''}>${_esc(m.name)}</option>`
+      ).join('');
+    }
+
+    g.innerHTML = bands + spouseEdges + edges + nodes;
+    _applyTfm();
   }
 
-  function setupPan() {
-    const wrap = document.getElementById('tree-scroll-wrap');
-    if (!wrap) return;
-    let panning = false, startX = 0, startY = 0, scrollLeft = 0, scrollTop = 0;
-    wrap.addEventListener('mousedown', e => {
-      if (e.target.closest('.tree-node')) return;
-      panning = true; startX = e.clientX; startY = e.clientY;
-      scrollLeft = wrap.scrollLeft; scrollTop = wrap.scrollTop;
-      wrap.style.cursor = 'grabbing';
+  function _applyTfm() {
+    const g = document.getElementById('tree-g');
+    if (g) g.setAttribute('transform', `translate(${tfm.x},${tfm.y}) scale(${tfm.s})`);
+  }
+
+  // ── Interaction ────────────────────────────────────────────────────
+  function _setupInteraction() {
+    const stage = document.getElementById('tree-stage');
+    if (!stage) return;
+
+    // Mouse pan
+    let drag = false, sx = 0, sy = 0, ox = 0, oy = 0;
+    stage.addEventListener('mousedown', e => {
+      if (e.target.closest('.tree-node') || e.target.closest('.col-btn')) return;
+      drag = true; sx = e.clientX; sy = e.clientY; ox = tfm.x; oy = tfm.y;
+      stage.style.cursor = 'grabbing'; e.preventDefault();
     });
     window.addEventListener('mousemove', e => {
-      if (!panning) return;
-      wrap.scrollLeft = scrollLeft - (e.clientX - startX);
-      wrap.scrollTop = scrollTop - (e.clientY - startY);
+      if (!drag) return;
+      tfm.x = ox + e.clientX - sx; tfm.y = oy + e.clientY - sy; _applyTfm();
     });
-    window.addEventListener('mouseup', () => { panning = false; if (wrap) wrap.style.cursor = ''; });
-    wrap.addEventListener('touchstart', e => {
+    window.addEventListener('mouseup', () => {
+      drag = false;
+      const s = document.getElementById('tree-stage'); if (s) s.style.cursor = '';
+    });
+
+    // Touch pan
+    let touch = false, tsx = 0, tsy = 0, tox = 0, toy = 0;
+    stage.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) return;
-      panning = true; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-      scrollLeft = wrap.scrollLeft; scrollTop = wrap.scrollTop;
+      touch = true; tsx = e.touches[0].clientX; tsy = e.touches[0].clientY; tox = tfm.x; toy = tfm.y;
     }, { passive: true });
-    wrap.addEventListener('touchmove', e => {
-      if (!panning || e.touches.length !== 1) return;
-      wrap.scrollLeft = scrollLeft - (e.touches[0].clientX - startX);
-      wrap.scrollTop = scrollTop - (e.touches[0].clientY - startY);
+    stage.addEventListener('touchmove', e => {
+      if (!touch || e.touches.length !== 1) return;
+      tfm.x = tox + e.touches[0].clientX - tsx; tfm.y = toy + e.touches[0].clientY - tsy; _applyTfm();
     }, { passive: true });
-    wrap.addEventListener('touchend', () => { panning = false; });
+    stage.addEventListener('touchend', () => { touch = false; });
+
+    // Wheel zoom (toward cursor)
+    stage.addEventListener('wheel', e => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.12 : -0.12;
+      const rect = stage.getBoundingClientRect();
+      _zoomAt(delta, e.clientX - rect.left, e.clientY - rect.top);
+    }, { passive: false });
+
+    // Fullscreen change
+    document.addEventListener('fullscreenchange', () => {
+      const btn = document.getElementById('tree-fs-btn');
+      if (btn) btn.textContent = document.fullscreenElement ? '✕' : '⛶';
+      requestAnimationFrame(() => fitView());
+    });
   }
 
+  function _zoomAt(delta, cx, cy) {
+    const oldS = tfm.s;
+    tfm.s = Math.min(3, Math.max(0.1, tfm.s + delta));
+    const f = tfm.s / oldS;
+    tfm.x = cx - f * (cx - tfm.x);
+    tfm.y = cy - f * (cy - tfm.y);
+    _applyTfm();
+  }
+
+  // ── Public controls ────────────────────────────────────────────────
   function zoom(delta) {
-    scale = Math.min(2.5, Math.max(0.25, scale + delta));
-    const svg = document.getElementById('tree-svg');
-    if (svg) svg.style.transform = `scale(${scale})`;
+    const stage = document.getElementById('tree-stage');
+    if (!stage) return;
+    _zoomAt(delta, stage.clientWidth / 2, stage.clientHeight / 2);
   }
 
-  function resetView() {
-    scale = 1;
-    const svg = document.getElementById('tree-svg');
-    if (svg) svg.style.transform = 'scale(1)';
-    const wrap = document.getElementById('tree-scroll-wrap');
-    if (wrap) { wrap.scrollLeft = 0; wrap.scrollTop = 0; }
+  function fitView() {
+    const stage = document.getElementById('tree-stage');
+    if (!stage || !stage.clientWidth || !stage.clientHeight) return;
+    const allPos = Object.values(nodePositions);
+    if (!allPos.length) return;
+    const minCx = Math.min(...allPos.map(p => p.cx));
+    const maxCx = Math.max(...allPos.map(p => p.cx));
+    const maxCy = Math.max(...allPos.map(p => p.cy));
+    const contentW = (maxCx - minCx + 1) * (NW + HG) - HG + 80;
+    const contentH = (maxCy + 1) * (NH + VG) - VG + 80;
+    const sw = stage.clientWidth, sh = stage.clientHeight;
+    const pad = 48;
+    tfm.s = Math.min((sw - pad) / contentW, (sh - pad) / contentH, 1.2);
+    tfm.x = (sw - contentW * tfm.s) / 2;
+    tfm.y = (sh - contentH * tfm.s) / 2;
+    _applyTfm();
   }
+
+  function resetView() { fitView(); }
 
   function toggleCollapse(id) {
     if (collapsedNodes.has(id)) collapsedNodes.delete(id);
     else collapsedNodes.add(id);
-    buildLayout();
-    render();
+    _buildLayout(); _renderContent();
   }
 
-  function setFilter(f) {
-    viewFilter = f; buildLayout(); render();
+  function setFilter(f, btn) {
+    viewFilter = f;
+    document.querySelectorAll('.tree-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _buildLayout(); _renderContent();
+    requestAnimationFrame(() => fitView());
   }
 
   function setFocal(id) {
     focalId = id;
-    if (viewFilter !== 'all') { buildLayout(); }
-    render();
+    if (viewFilter !== 'all') { _buildLayout(); _renderContent(); requestAnimationFrame(() => fitView()); }
+    else _renderContent();
+  }
+
+  function search(query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) { highlight = null; _renderContent(); return; }
+
+    const match = members.find(m => m.name.toLowerCase().includes(q));
+    if (!match) { highlight = null; _renderContent(); return; }
+    highlight = match.id;
+
+    const visIds = new Set(_visibleMembers().map(m => m.id));
+    if (!visIds.has(match.id)) {
+      viewFilter = 'all';
+      collapsedNodes = new Set();
+      const btns = document.querySelectorAll('.tree-filter-btn');
+      btns.forEach(b => b.classList.remove('active'));
+      if (btns[0]) btns[0].classList.add('active');
+      _buildLayout();
+    }
+
+    _renderContent();
+    if (!nodePositions[match.id]) return;
+
+    const stage = document.getElementById('tree-stage');
+    if (!stage) return;
+
+    // Collect nodes to show: match + spouse + 1 gen above + 1 gen below
+    const focusIds = new Set([match.id]);
+    const sid = spouseMap[match.id];
+    if (sid && nodePositions[sid]) focusIds.add(sid);
+    if (match.paternal_parent_id && nodePositions[match.paternal_parent_id]) focusIds.add(match.paternal_parent_id);
+    if (match.maternal_parent_id && nodePositions[match.maternal_parent_id]) focusIds.add(match.maternal_parent_id);
+    for (const m of members) {
+      if ((m.paternal_parent_id === match.id || m.maternal_parent_id === match.id ||
+           (sid && (m.paternal_parent_id === sid || m.maternal_parent_id === sid))) &&
+          nodePositions[m.id]) {
+        focusIds.add(m.id);
+      }
+    }
+
+    // Compute pixel bounding box over all focus nodes
+    const pxList = [...focusIds].map(id => _px(nodePositions[id].cx, nodePositions[id].cy));
+    const minX = Math.min(...pxList.map(p => p.x));
+    const maxX = Math.max(...pxList.map(p => p.x)) + NW;
+    const minY = Math.min(...pxList.map(p => p.y));
+    const maxY = Math.max(...pxList.map(p => p.y)) + NH;
+    const pad = 60;
+    const sw = stage.clientWidth, sh = stage.clientHeight;
+    tfm.s = Math.min((sw - pad * 2) / (maxX - minX), (sh - pad * 2) / (maxY - minY), 1.5);
+    tfm.s = Math.max(tfm.s, 0.2);
+    tfm.x = sw / 2 - ((minX + maxX) / 2) * tfm.s;
+    tfm.y = sh / 2 - ((minY + maxY) / 2) * tfm.s;
+    _applyTfm();
+  }
+
+  function handleClick(id) { if (onMemberClick) onMemberClick(id); }
+
+  function toggleFullscreen() {
+    const stage = document.getElementById('tree-stage');
+    if (!stage) return;
+    if (!document.fullscreenElement) {
+      stage.requestFullscreen && stage.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen && document.exitFullscreen().catch(() => {});
+    }
   }
 
   function downloadPNG() {
     const svg = document.getElementById('tree-svg');
     if (!svg) return;
-    // Clone and strip <image> elements to avoid canvas taint from cross-origin photos
+    const allPos = Object.values(nodePositions);
+    if (!allPos.length) return;
+    const maxCx = Math.max(...allPos.map(p => p.cx));
+    const maxCy = Math.max(...allPos.map(p => p.cy));
+    const W = (maxCx + 2) * (NW + HG) + 80, H = (maxCy + 2) * (NH + VG) + 80;
+
     const clone = svg.cloneNode(true);
-    clone.querySelectorAll('image').forEach(img => img.remove());
-    const svgData = new XMLSerializer().serializeToString(clone);
-    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    clone.querySelectorAll('image').forEach(i => i.remove());
+    clone.setAttribute('width', W); clone.setAttribute('height', H);
+    const gClone = clone.querySelector('#tree-g');
+    if (gClone) gClone.setAttribute('transform', 'translate(0,0) scale(1)');
+
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = svg.width.baseVal.value;
-      canvas.height = svg.height.baseVal.value;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#f8f5ee';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#f8f5ee'; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0);
       URL.revokeObjectURL(url);
-      const link = document.createElement('a');
-      link.download = 'family-tree.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      const a = document.createElement('a'); a.download = 'family-tree.png'; a.href = c.toDataURL('image/png'); a.click();
     };
-    img.onerror = () => { URL.revokeObjectURL(url); alert('PNG export failed — try the PDF option instead.'); };
+    img.onerror = () => { URL.revokeObjectURL(url); alert('PNG export failed.'); };
     img.src = url;
   }
 
-  function downloadPDF() {
-    const svg = document.getElementById('tree-svg');
-    if (!svg) return;
-    const clone = svg.cloneNode(true);
-    clone.style.transform = '';
-    const win = window.open('', '_blank');
-    if (!win) { alert('Allow pop-ups to download PDF'); return; }
-    win.document.write(`<!DOCTYPE html><html><head><title>Family Tree</title>
-      <style>body{margin:0;background:#f8f5ee}svg{display:block;max-width:100%}
-      @media print{@page{size:landscape;margin:8mm}body{background:#fff}}</style>
-      </head><body>${new XMLSerializer().serializeToString(clone)}
-      <script>window.onload=()=>{window.print();}<\/script></body></html>`);
-    win.document.close();
-  }
-
-  function handleClick(id) { if (onMemberClick) onMemberClick(id); }
-
-  return { init, update, zoom, resetView, handleClick, toggleCollapse, setFilter, setFocal, downloadPNG, downloadPDF };
+  return { init, update, zoom, fitView, resetView, handleClick, toggleCollapse, setFilter, setFocal, search, downloadPNG, toggleFullscreen };
 })();

@@ -126,4 +126,7 @@ db.exec(`
   );
 `);
 
+// Migrations for existing databases
+try { db.exec(`ALTER TABLE tree_members ADD COLUMN partner_ids TEXT DEFAULT '[]'`); } catch (_) {}
+
 module.exports = db;

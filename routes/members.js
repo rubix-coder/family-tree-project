@@ -17,13 +17,13 @@ router.get('/', authenticate, requireTreeAccess('viewer'), (req, res) => {
 });
 
 router.post('/', authenticate, requireTreeAccess('editor'), (req, res) => {
-  const { name, birth_year, death_year, birth_place, gender, bio, paternal_parent_id, maternal_parent_id, spouse_id, linked_user_id } = req.body;
+  const { name, birth_year, death_year, birth_place, gender, bio, paternal_parent_id, maternal_parent_id, spouse_id, partner_ids, linked_user_id } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   const id = uuidv4();
   db.prepare(`
-    INSERT INTO tree_members (id, tree_id, name, birth_year, death_year, birth_place, gender, bio, paternal_parent_id, maternal_parent_id, spouse_id, linked_user_id, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, req.params.treeId, name, birth_year || null, death_year || null, birth_place || null, gender || 'other', bio || null, paternal_parent_id || null, maternal_parent_id || null, spouse_id || null, linked_user_id || null, req.user.id);
+    INSERT INTO tree_members (id, tree_id, name, birth_year, death_year, birth_place, gender, bio, paternal_parent_id, maternal_parent_id, spouse_id, partner_ids, linked_user_id, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.params.treeId, name, birth_year || null, death_year || null, birth_place || null, gender || 'other', bio || null, paternal_parent_id || null, maternal_parent_id || null, spouse_id || null, partner_ids || '[]', linked_user_id || null, req.user.id);
 
   db.prepare("UPDATE trees SET updated_at = datetime('now') WHERE id = ?").run(req.params.treeId);
 
@@ -51,7 +51,7 @@ router.patch('/:memberId', authenticate, requireTreeAccess('editor'), (req, res)
   const member = db.prepare('SELECT id FROM tree_members WHERE id = ? AND tree_id = ?').get(req.params.memberId, req.params.treeId);
   if (!member) return res.status(404).json({ error: 'Member not found' });
 
-  const fields = ['name', 'birth_year', 'death_year', 'birth_place', 'gender', 'bio', 'paternal_parent_id', 'maternal_parent_id', 'spouse_id', 'linked_user_id'];
+  const fields = ['name', 'birth_year', 'death_year', 'birth_place', 'gender', 'bio', 'paternal_parent_id', 'maternal_parent_id', 'spouse_id', 'partner_ids', 'linked_user_id'];
   const updates = [];
   const params = [];
   for (const f of fields) {

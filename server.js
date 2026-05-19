@@ -18,6 +18,8 @@ app.use('/api/trees/:treeId/members', require('./routes/members'));
 app.use('/api', require('./routes/social'));
 app.use('/api', require('./routes/invitations'));
 
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -27,6 +29,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`FamilyTree Social running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`FamilyTree Social running at http://0.0.0.0:${PORT}`);
 });

@@ -89,7 +89,13 @@ router.delete('/:id', authenticate, (req, res) => {
   const tree = db.prepare('SELECT owner_id FROM trees WHERE id = ?').get(req.params.id);
   if (!tree) return res.status(404).json({ error: 'Tree not found' });
   if (tree.owner_id !== req.user.id) return res.status(403).json({ error: 'Only the owner can delete a tree' });
-  db.prepare('DELETE FROM trees WHERE id = ?').run(req.params.id);
+  // Clear posts.member_id before cascade to avoid FK constraint violation
+  // (posts.member_id → tree_members.id has no ON DELETE action)
+  const deleteTree = db.transaction(id => {
+    db.prepare('UPDATE posts SET member_id = NULL WHERE tree_id = ?').run(id);
+    db.prepare('DELETE FROM trees WHERE id = ?').run(id);
+  });
+  deleteTree(req.params.id);
   res.json({ message: 'Tree deleted' });
 });
 
