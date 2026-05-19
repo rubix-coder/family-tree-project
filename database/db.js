@@ -18,9 +18,9 @@ const _prep = rawDb.prepare.bind(rawDb);
 rawDb.prepare = (sql) => {
   const stmt = _prep(sql);
   return {
-    all:  (...args) => { try { return stmt.all(...args);  } finally { stmt.free(); } },
-    get:  (...args) => { try { return stmt.get(...args);  } finally { stmt.free(); } },
-    run:  (...args) => { try { return stmt.run(...args);  } finally { stmt.free(); } },
+    all:  (...args) => { try { return stmt.all(...args);  } finally { stmt.finalize(); } },
+    get:  (...args) => { try { return stmt.get(...args);  } finally { stmt.finalize(); } },
+    run:  (...args) => { try { return stmt.run(...args);  } finally { stmt.finalize(); } },
   };
 };
 
