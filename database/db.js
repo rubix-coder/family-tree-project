@@ -11,16 +11,16 @@ const rawDb = new _Database(DB_PATH);
 rawDb.exec("PRAGMA journal_mode = WAL");
 rawDb.exec("PRAGMA foreign_keys = ON");
 
-// node-sqlite3-wasm requires stmt.free() after each use to avoid memory leaks.
-// Wrap prepare() so statements free themselves automatically, keeping all
-// call-sites identical to the better-sqlite3 API.
+// node-sqlite3-wasm's stmt methods take a single array/object for bind params,
+// unlike better-sqlite3 which accepts spread args. Wrap prepare() to collect
+// spread args into an array so all call-sites stay identical to better-sqlite3.
 const _prep = rawDb.prepare.bind(rawDb);
 rawDb.prepare = (sql) => {
   const stmt = _prep(sql);
   return {
-    all:  (...args) => { try { return stmt.all(...args);  } finally { stmt.finalize(); } },
-    get:  (...args) => { try { return stmt.get(...args);  } finally { stmt.finalize(); } },
-    run:  (...args) => { try { return stmt.run(...args);  } finally { stmt.finalize(); } },
+    all:  (...args) => { try { return stmt.all(args);  } finally { stmt.finalize(); } },
+    get:  (...args) => { try { return stmt.get(args);  } finally { stmt.finalize(); } },
+    run:  (...args) => { try { return stmt.run(args);  } finally { stmt.finalize(); } },
   };
 };
 
